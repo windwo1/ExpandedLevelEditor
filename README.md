@@ -1,14 +1,14 @@
-# FrostyToolsuite
-The most advanced modding platform for games running on DICE's Frostbite game engine.
+# GW2 Level Editor
 
-## Setup
+A modified version of the Level Editor plugin for 1.0.7 for PvZ GW2. It will let you export levels. Exports meshes, textures, terrain, terrain layers and vector paramaters.
 
-1. Download Git https://git-scm.com/download/win.
-2. Create an empty folder, go inside it, right click an empty space and hit "Git Bash Here". That should open up a command prompt.
-3. Press the green "Code" button in the repository and copy the text under "HTTPS".
-4. Type out ``git clone -b <branch_name> <HTTPS code>`` in the command prompt and hit enter. This should clone the project files into the folder.
-5. Open the solution (found under FrostyEditor) with **Visual Studio 2019**, and make sure the project is set to ``DeveloperDebug`` and ``x64``. Close out of retarget window if prompted.
-6. Only build the projects themselves, never the solution.
+If you want to port this to other games, it'll probably be better if you clone the original repo: https://github.com/CadeEvs/FrostyToolsuite/tree/LevelEditor.
+Then copy in the main scripts I've edited:
 
-## License
-The Content, Name, Code, and all assets are licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
+- ModelRenderProxy.cs
+- TerrainRenderable.cs
+- MeshAsset.cs
+- MeshRenderable.cs
+- LevelEditor.cs
+
+This is because when I ported this to GW2 I did it very lazily.
