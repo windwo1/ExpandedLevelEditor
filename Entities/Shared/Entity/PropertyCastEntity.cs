@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CString = FrostySdk.Ebx.CString;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.PropertyCastEntityData))]
@@ -55,7 +56,7 @@ namespace LevelEditorPlugin.Entities
             boolValueProperty = new Property<bool>(this, Property_BoolValue, Data.BoolValue);
             floatValueProperty = new Property<float>(this, Property_FloatValue, Data.FloatValue);
             intValueProperty = new Property<int>(this, Property_IntValue, Data.IntValue);
-            uintValueProperty = new Property<uint>(this, Property_UintValue, Data.UintValue);
+            uintValueProperty = new Property<uint>(this, Property_UintValue, Data.UIntValue);
             stringValueProperty = new Property<CString>(this, Property_StringValue, Data.StringValue);
 
             castToBoolProperty = new Property<bool>(this, Property_CastToBool, false);
@@ -118,3 +119,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

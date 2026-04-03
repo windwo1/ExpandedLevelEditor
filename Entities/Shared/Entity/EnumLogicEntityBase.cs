@@ -2,6 +2,7 @@ using FrostySdk;
 using System;
 using System.Collections.Generic;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.EnumLogicEntityBaseData))]
@@ -21,3 +22,4 @@ namespace LevelEditorPlugin.Entities
 	}
 }
 
+#endif

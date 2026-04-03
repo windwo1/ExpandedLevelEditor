@@ -36,13 +36,26 @@ namespace LevelEditorPlugin.Render
             HeightfieldTreeNode hnode = htree.getRootNode() as HeightfieldTreeNode;
             TerrainMaskTreeNode mnode = mtree.getRootNode() as TerrainMaskTreeNode;
 
-            //using (NativeWriter writer = new NativeWriter(new FileStream(@"Z:\Dump\Terrain\Output.txt", FileMode.Create)))
-            //    PrintHeightfieldNodes(streamingData, htree, hnode, writer, 0);
-
-            //using (NativeWriter writer = new NativeWriter(new FileStream(@"Z:\Dump\Terrain\Mask.txt", FileMode.Create)))
-            //    PrintMaskNodes(streamingData, htree, mtree, mnode, writer, 0);
-
             Dictionary<Guid, NativeReader> chunkCache = new Dictionary<Guid, NativeReader>();
+
+            string terrainPath = Path.Combine(Directory.GetCurrentDirectory(), "Terrain");
+
+            if (!File.Exists(terrainPath))
+            {
+                Directory.CreateDirectory(terrainPath);
+            }
+
+            foreach (var file in Directory.GetFiles(terrainPath))
+            {
+                File.Delete(file);
+            }
+
+            using (NativeWriter writer = new NativeWriter(new FileStream(Path.Combine(terrainPath, "Output.txt"), FileMode.Create)))
+                PrintHeightfieldNodes(streamingData, htree, hnode, writer, 0, chunkCache);
+
+            using (NativeWriter writer = new NativeWriter(new FileStream(Path.Combine(terrainPath, "Mask.txt"), FileMode.Create)))
+                PrintMaskNodes(streamingData, htree, mtree, mnode, writer, 0, chunkCache);
+
             IterateNodes(state, streamingData, htree, hnode, mtree, mnode, new List<LayerData>(), chunkCache);
 
             //iterateNodes(state, streamingData, streamingData.GetRootNode());
@@ -57,197 +70,246 @@ namespace LevelEditorPlugin.Render
                 chunk.Dispose();
         }
 
-        //private void PrintMaskNodes(TerrainStreamingTree tree, HeightfieldTree htree, TerrainMaskTree mtree, TerrainMaskTreeNode mnode, NativeWriter writer, int tab, Dictionary<Guid, NativeReader> chunkCache)
-        //{
-        //    string basePath = @"Z:\Dump\Terrain\Masks\";
-        //    writer.WriteLine("".PadLeft(tab) + $"{mnode.id}");
+        private void PrintMaskNodes(TerrainStreamingTree tree, HeightfieldTree htree, TerrainMaskTree mtree, TerrainMaskTreeNode mnode, NativeWriter writer, int tab, Dictionary<Guid, NativeReader> chunkCache)
+        {
+            string basePath = Directory.GetCurrentDirectory();
+            writer.WriteLine("".PadLeft(tab) + $"{mnode.id}");
 
-        //    if (mnode.subtiles.Count > 0)
-        //    {
-        //        if (mnode.data == null)
-        //        {
-        //            if (mnode.nonTrivialSubtileCount > 0)
-        //            {
-        //                ushort hidx = htree.getNodeIndex(mnode.id);
-        //                HeightfieldTreeNode hhnode = (hidx != 0xFFFF) ? htree.getNode(hidx) as HeightfieldTreeNode : null;
+            if (mnode.subtiles.Count > 0)
+            {
+                if (mnode.data == null)
+                {
+                    if (mnode.nonTrivialSubtileCount > 0)
+                    {
+                        ushort hidx = htree.getNodeIndex(mnode.id);
+                        HeightfieldTreeNode hhnode = (hidx != 0xFFFF) ? htree.getNode(hidx) as HeightfieldTreeNode : null;
 
-        //                bool hiRes;
-        //                NativeReader hreader = GetReaderForNode(tree, mnode, chunkCache, out hiRes);
-        //                {
-        //                    if (hiRes)
-        //                    {
-        //                        if (hhnode != null && hhnode.hasData && !hhnode.hasPersistentData)
-        //                            hreader.Position = htree.DataSize * 4;
+                        bool hiRes;
+                        NativeReader hreader = GetReaderForNode(tree, mnode, chunkCache, out hiRes);
+                        {
+                            if (hiRes)
+                            {
+                                if (hhnode != null && hhnode.hasData && !hhnode.hasPersistentData)
+                                    hreader.Position = htree.DataSize * 4;
 
-        //                        mtree.loadData(hreader, mnode.parent.children[3]);
-        //                        mtree.loadData(hreader, mnode.parent.children[2]);
-        //                        mtree.loadData(hreader, mnode.parent.children[1]);
-        //                        mtree.loadData(hreader, mnode.parent.children[0]);
-        //                    }
-        //                    else
-        //                    {
-        //                        if (hhnode != null && hhnode.hasData && !hhnode.hasPersistentData)
-        //                            hreader.Position = htree.DataSize;
+                                mtree.loadData(hreader, mnode.parent.children[3]);
+                                mtree.loadData(hreader, mnode.parent.children[2]);
+                                mtree.loadData(hreader, mnode.parent.children[1]);
+                                mtree.loadData(hreader, mnode.parent.children[0]);
+                            }
+                            else
+                            {
+                                if (hhnode != null && hhnode.hasData && !hhnode.hasPersistentData)
+                                    hreader.Position = htree.DataSize;
 
-        //                        mtree.loadData(hreader, mnode);
-        //                    }
-        //                }
-        //            }
+                                mtree.loadData(hreader, mnode);
+                            }
+                        }
+                    }
 
-        //            List<Dictionary<AtlasTileId, byte[]>> layers = new List<Dictionary<AtlasTileId, byte[]>>();
-        //            int z = 0;
+                    List<Dictionary<AtlasTileId, byte[]>> layers = new List<Dictionary<AtlasTileId, byte[]>>();
+                    int z = 0;
 
-        //            byte[] whiteTile = new byte[mtree.tileSamplesPerSide * mtree.tileSamplesPerSide];
-        //            for (int i = 0; i < (mtree.tileSamplesPerSide * mtree.tileSamplesPerSide); i++)
-        //                whiteTile[i] = 0xFF;
+                    byte[] whiteTile = new byte[mtree.tileSamplesPerSide * mtree.tileSamplesPerSide];
+                    for (int i = 0; i < (mtree.tileSamplesPerSide * mtree.tileSamplesPerSide); i++)
+                        whiteTile[i] = 0xFF;
 
-        //            for (int i = 0; i < mtree.maxLayerCount; i++)
-        //                layers.Add(new Dictionary<AtlasTileId, byte[]>());
+                    for (int i = 0; i < mtree.maxLayerCount; i++)
+                        layers.Add(new Dictionary<AtlasTileId, byte[]>());
 
-        //            foreach (TerrainMaskTreeNode.Subtile subtile in mnode.subtiles)
-        //            {
-        //                if ((subtile.flags & 2) == 0)
-        //                {
-        //                    layers[subtile.terrainLayerIndex].Add(subtile.atlasTileId, mnode.data[z++]);
-        //                }
-        //                else
-        //                {
-        //                    layers[subtile.terrainLayerIndex].Add(subtile.atlasTileId, whiteTile);
-        //                }
-        //            }
+                    foreach (TerrainMaskTreeNode.Subtile subtile in mnode.subtiles)
+                    {
+                        if ((subtile.flags & 2) == 0)
+                        {
+                            layers[subtile.terrainLayerIndex].Add(subtile.atlasTileId, mnode.data[z++]);
+                        }
+                        else
+                        {
+                            layers[subtile.terrainLayerIndex].Add(subtile.atlasTileId, whiteTile);
+                        }
+                    }
 
-        //            int layerIdx = 0;
-        //            foreach (Dictionary<AtlasTileId, byte[]> layer in layers)
-        //            {
-        //                if (layer.Count > 0)
-        //                {
-        //                    List<byte> pixels = new List<byte>();
-        //                    byte[] layerData = new byte[(mtree.tileSamplesPerSide * mtree.tilesPerNodeSide) * (mtree.tileSamplesPerSide * mtree.tilesPerNodeSide)];
+                    int layerIdx = 0;
+                    foreach (Dictionary<AtlasTileId, byte[]> layer in layers)
+                    {
+                        if (layer.Count > 0)
+                        {
+                            List<byte> pixels = new List<byte>();
+                            byte[] layerData = new byte[(mtree.tileSamplesPerSide * mtree.tilesPerNodeSide) * (mtree.tileSamplesPerSide * mtree.tilesPerNodeSide)];
 
-        //                    for (int row = 0; row < mtree.tilesPerNodeSide; row++)
-        //                    {
-        //                        for (int col = 0; col < mtree.tilesPerNodeSide; col++)
-        //                        {
-        //                            AtlasTileId tileId = new AtlasTileId() { indexX = (byte)(col + 1), indexY = (byte)(row + 1) };
-        //                            int yOffset = (int)(row * mtree.tileSamplesPerSide);
+                            for (int row = 0; row < mtree.tilesPerNodeSide; row++)
+                            {
+                                for (int col = 0; col < mtree.tilesPerNodeSide; col++)
+                                {
+                                    AtlasTileId tileId = new AtlasTileId() { indexX = (byte)(col + 1), indexY = (byte)(row + 1) };
+                                    int yOffset = (int)(row * mtree.tileSamplesPerSide);
 
-        //                            if (layer.ContainsKey(tileId))
-        //                            {
-        //                                int xOffset = (int)(col * mtree.tileSamplesPerSide);
-        //                                for (int y = 0; y < mtree.tileSamplesPerSide; y++)
-        //                                {
-        //                                    for (int x = 0; x < mtree.tileSamplesPerSide; x++)
-        //                                    {
-        //                                        layerData[((y + yOffset) * (mtree.tileSamplesPerSide * mtree.tilesPerNodeSide)) + (x + xOffset)] = layer[tileId][(y * mtree.tileSamplesPerSide) + x];
-        //                                    }
-        //                                }
-        //                            }
-        //                        }
-        //                    }
+                                    if (layer.ContainsKey(tileId))
+                                    {
+                                        int xOffset = (int)(col * mtree.tileSamplesPerSide);
+                                        for (int y = 0; y < mtree.tileSamplesPerSide; y++)
+                                        {
+                                            for (int x = 0; x < mtree.tileSamplesPerSide; x++)
+                                            {
+                                                layerData[((y + yOffset) * (mtree.tileSamplesPerSide * mtree.tilesPerNodeSide)) + (x + xOffset)] = layer[tileId][(y * mtree.tileSamplesPerSide) + x];
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
-        //                    foreach (var b in layerData)
-        //                    {
-        //                        pixels.Add(b);
-        //                        pixels.Add(b);
-        //                        pixels.Add(b);
-        //                        pixels.Add((byte)0xFF);
-        //                    }
+                            foreach (var b in layerData)
+                            {
+                                pixels.Add(b);
+                                pixels.Add(b);
+                                pixels.Add(b);
+                                pixels.Add((byte)0xFF);
+                            }
 
-        //                    byte[] tgaData = Frosty.Image.ImageCreator.CreateTGA((int)(mtree.tileSamplesPerSide * mtree.tilesPerNodeSide), (int)(mtree.tileSamplesPerSide * mtree.tilesPerNodeSide), pixels.ToArray());
-        //                    using (NativeWriter tgaWriter = new NativeWriter(new FileStream(basePath + $"{mnode.id.level}x{mnode.id.indexX}x{mnode.id.indexY}.{layerIdx}.tga", FileMode.Create)))
-        //                    {
-        //                        tgaWriter.Write(tgaData);
-        //                    }
-        //                }
+                            string path = Path.Combine(basePath, "Terrain", $"{mnode.id.level}x{mnode.id.indexX}x{mnode.id.indexY}.{layerIdx}.tga");
 
-        //                layerIdx++;
-        //            }
-        //        }
-        //    }
+                            if (!Directory.Exists(Path.Combine(basePath, "Terrain")))
+                            {
+                                Directory.CreateDirectory(Path.Combine(basePath, "Terrain"));
+                            }
 
-        //    for (int i = 0; i < mnode.children.Count; i++)
-        //    {
-        //        TerrainMaskTreeNode childNode = mnode.children[i] as TerrainMaskTreeNode;
-        //        PrintMaskNodes(tree, htree, mtree, childNode, writer, tab + 4, chunkCache);
-        //    }
-        //}
+                            byte[] tgaData = CreateTGA((int)(mtree.tileSamplesPerSide * mtree.tilesPerNodeSide), (int)(mtree.tileSamplesPerSide * mtree.tilesPerNodeSide), pixels.ToArray());
+                            using (NativeWriter tgaWriter = new NativeWriter(new FileStream(path, FileMode.Create)))
+                            {
+                                tgaWriter.Write(tgaData);
+                            }
+                        }
 
-        //private void PrintHeightfieldNodes(TerrainStreamingTree tree, HeightfieldTree htree, HeightfieldTreeNode hnode, NativeWriter writer, int tab, Dictionary<Guid, NativeReader> chunkCache)
-        //{
-        //    string basePath = @"Z:\Dump\Terrain\Textures\";
-        //    writer.WriteLine("".PadLeft(tab) + $"{hnode.id}");
+                        layerIdx++;
+                    }
+                }
+            }
 
-        //    if (hnode.hasData)
-        //    {
-        //        if (hnode.data == null)
-        //        {
-        //            bool hiRes;
-        //            NativeReader hreader = GetReaderForNode(tree, hnode, chunkCache, out hiRes);
-        //            {
-        //                if (hiRes)
-        //                {
-        //                    htree.loadData(hreader, hnode.parent.children[3]);
-        //                    htree.loadData(hreader, hnode.parent.children[2]);
-        //                    htree.loadData(hreader, hnode.parent.children[1]);
-        //                    htree.loadData(hreader, hnode.parent.children[0]);
-        //                }
-        //                else
-        //                {
-        //                    htree.loadData(hreader, hnode);
-        //                }
-        //            }
-        //        }
+            for (int i = 0; i < mnode.children.Count; i++)
+            {
+                TerrainMaskTreeNode childNode = mnode.children[i] as TerrainMaskTreeNode;
+                PrintMaskNodes(tree, htree, mtree, childNode, writer, tab + 4, chunkCache);
+            }
+        }
 
-        //        int z = 0;
-        //        int dim = (int)htree.nodeSamplesPerSide;
-        //        float spacing = ((hnode.size / (float)((dim - (htree.unknown11 * 2)) - 1)));
-        //        float worldSizeY = htree.worldSizeY;
+        private void PrintHeightfieldNodes(TerrainStreamingTree tree, HeightfieldTree htree, HeightfieldTreeNode hnode, NativeWriter writer, int tab, Dictionary<Guid, NativeReader> chunkCache)
+        {
+            string basePath = Directory.GetCurrentDirectory();
+            writer.WriteLine("".PadLeft(tab) + $"{hnode.id}");
 
-        //        BoundingBox tmpBb = new BoundingBox();
-        //        tmpBb.Minimum.X = hnode.boundingBox.min.x;
-        //        tmpBb.Minimum.Y = hnode.boundingBox.min.y;
-        //        tmpBb.Minimum.Z = hnode.boundingBox.min.z;
+            if (hnode.hasData)
+            {
+                if (hnode.data == null)
+                {
+                    bool hiRes;
+                    NativeReader hreader = GetReaderForNode(tree, hnode, chunkCache, out hiRes);
+                    {
+                        if (hiRes)
+                        {
+                            htree.loadData(hreader, hnode.parent.children[3]);
+                            htree.loadData(hreader, hnode.parent.children[2]);
+                            htree.loadData(hreader, hnode.parent.children[1]);
+                            htree.loadData(hreader, hnode.parent.children[0]);
+                        }
+                        else
+                        {
+                            htree.loadData(hreader, hnode);
+                        }
+                    }
+                }
 
-        //        tmpBb.Maximum.X = hnode.boundingBox.max.x;
-        //        tmpBb.Maximum.Y = hnode.boundingBox.max.y;
-        //        tmpBb.Maximum.Z = hnode.boundingBox.max.z;
+                int z = 0;
+                int dim = (int)htree.nodeSamplesPerSide;
+                float spacing = ((hnode.size / (float)((dim - (htree.unknown11 * 2)) - 1)));
+                float worldSizeY = htree.worldSizeY;
 
-        //        float minX = (tmpBb.Minimum.X - (spacing * 2));
-        //        float minY = (tmpBb.Minimum.Z - (spacing * 2));
+                BoundingBox tmpBb = new BoundingBox();
+                tmpBb.Minimum.X = hnode.boundingBox.min.x;
+                tmpBb.Minimum.Y = hnode.boundingBox.min.y;
+                tmpBb.Minimum.Z = hnode.boundingBox.min.z;
 
-        //        List<byte> pixels = new List<byte>();
-        //        for (int y = 0; y < dim; y++)
-        //        {
-        //            for (int x = 0; x < dim; x++)
-        //            {
-        //                float newX = minX + (x * spacing);
-        //                float newY = minY + (y * spacing);
+                tmpBb.Maximum.X = hnode.boundingBox.max.x;
+                tmpBb.Maximum.Y = hnode.boundingBox.max.y;
+                tmpBb.Maximum.Z = hnode.boundingBox.max.z;
 
-        //                float height = (BitConverter.ToUInt16(hnode.data, z * 2) / (float)ushort.MaxValue);
-        //                byte channelColor = (byte)(height * 255.0f);
+                float minX = (tmpBb.Minimum.X - (spacing * 2));
+                float minY = (tmpBb.Minimum.Z - (spacing * 2));
 
-        //                pixels.Add(channelColor);
-        //                pixels.Add(channelColor);
-        //                pixels.Add(channelColor);
-        //                pixels.Add((byte)0xFF);
+                List<byte> pixels = new List<byte>();
+                for (int y = 0; y < dim; y++)
+                {
+                    for (int x = 0; x < dim; x++)
+                    {
+                        float newX = minX + (x * spacing);
+                        float newY = minY + (y * spacing);
 
-        //                z++;
-        //            }
-        //        }
+                        float height = (BitConverter.ToUInt16(hnode.data, z * 2) / (float)ushort.MaxValue);
+                        byte channelColor = (byte)(height * 255.0f);
 
-        //        byte[] tgaData = Frosty.Image.ImageCreator.CreateTGA(dim, dim, pixels.ToArray());
-        //        using (NativeWriter tgaWriter = new NativeWriter(new FileStream(basePath + $"{hnode.id.level}x{hnode.id.indexX}x{hnode.id.indexY}.tga", FileMode.Create)))
-        //        {
-        //            tgaWriter.Write(tgaData);
-        //        }
-        //    }
+                        pixels.Add(channelColor);
+                        pixels.Add(channelColor);
+                        pixels.Add(channelColor);
+                        pixels.Add((byte)0xFF);
 
-        //    for (int i = 0; i < hnode.children.Count; i++)
-        //    {
-        //        HeightfieldTreeNode childNode = hnode.children[i] as HeightfieldTreeNode;
-        //        PrintHeightfieldNodes(tree, htree, childNode, writer, tab + 4, chunkCache);
-        //    }
-        //}
+                        z++;
+                    }
+                }
+
+                byte[] tgaData = CreateTGA(dim, dim, pixels.ToArray());
+
+                string path = Path.Combine(basePath, "Terrain", $"{hnode.id.level}x{hnode.id.indexX}x{hnode.id.indexY}.tga");
+
+                if (!Directory.Exists(Path.Combine(basePath, "Terrain")))
+                {
+                    Directory.CreateDirectory(Path.Combine(basePath, "Terrain"));
+                }
+
+                using (NativeWriter tgaWriter = new NativeWriter(new FileStream(path, FileMode.Create)))
+                {
+                    tgaWriter.Write(tgaData);
+                }
+            }
+
+            for (int i = 0; i < hnode.children.Count; i++)
+            {
+                HeightfieldTreeNode childNode = hnode.children[i] as HeightfieldTreeNode;
+                PrintHeightfieldNodes(tree, htree, childNode, writer, tab + 4, chunkCache);
+            }
+        }
+
+        private byte[] CreateTGA(int width, int height, byte[] pixels)
+        {
+            byte[] header = new byte[18];
+
+            header[0] = 0;
+            header[1] = 0;
+            header[2] = 2;
+            header[8] = 0;
+            header[9] = 0;
+            header[10] = 0;
+            header[11] = 0;
+            header[12] = (byte)(width & 0xFF);
+            header[13] = (byte)((width >> 8) & 0xFF);
+            header[14] = (byte)(height & 0xFF);
+            header[15] = (byte)((height >> 8) & 0xFF);
+            header[16] = 32;
+            header[17] = 0x28;
+
+            byte[] bgra = new byte[pixels.Length];
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                bgra[i + 0] = pixels[i + 2];
+                bgra[i + 1] = pixels[i + 1];
+                bgra[i + 2] = pixels[i + 0];
+                bgra[i + 3] = pixels[i + 3];
+            }
+
+            byte[] tga = new byte[header.Length + bgra.Length];
+            Array.Copy(header, 0, tga, 0, header.Length);
+            Array.Copy(bgra, 0, tga, header.Length, bgra.Length);
+
+            return tga;
+        }
 
         private void IterateNodes(RenderCreateState state, TerrainStreamingTree tree, HeightfieldTree htree, HeightfieldTreeNode hnode, TerrainMaskTree mtree, TerrainMaskTreeNode mnode, List<LayerData> layerDatas, Dictionary<Guid, NativeReader> chunkCache)
         {
@@ -441,6 +503,11 @@ namespace LevelEditorPlugin.Render
         private PrimitiveTopology primitiveType;
 
         private List<BindableTextureWithData> textures = new List<BindableTextureWithData>();
+
+        public List<TerrainVertex> TerrainVertices = new List<TerrainVertex>();
+
+        public List<uint> TerrainIndices = new List<uint>();
+
         private static Random r = new Random();
 
         public TerrainChunkRenderable(RenderCreateState state, HeightfieldTree htree, HeightfieldTreeNode hnode, TerrainMaskTree mtree/*, TerrainMaskTreeNode mnode*/, List<TerrainRenderable.LayerData> layerDatas)
@@ -785,6 +852,9 @@ namespace LevelEditorPlugin.Render
                 textures.Add(new BindableTextureWithData(state.Device, texDesc, true, false, data: box));
                 ds.Dispose();
             }
+
+            TerrainVertices = vertices;
+            TerrainIndices = indices;
         }
 
         public void Dispose()
@@ -796,6 +866,33 @@ namespace LevelEditorPlugin.Render
             }
             vertexBuffer.Dispose();
             indexBuffer.Dispose();
+        }
+
+        public void ExportToOBJ(string filepath)
+        {
+            StreamWriter streamWriter = new StreamWriter(filepath);
+            foreach (TerrainVertex terrainVertex in TerrainVertices)
+            {
+                streamWriter.WriteLine("v {0} {1} {2}", terrainVertex.Position.X, terrainVertex.Position.Y, terrainVertex.Position.Z);
+            }
+
+            foreach (TerrainVertex terrainVertex2 in TerrainVertices)
+            {
+                streamWriter.WriteLine("vn {0} {1} {2}", terrainVertex2.Normal.X, terrainVertex2.Normal.Y, terrainVertex2.Normal.Z);
+            }
+
+            for (int i = 0; i < TerrainIndices.Count; i += 3)
+            {
+                uint num = TerrainIndices[i] + 1;
+                uint num2 = TerrainIndices[i + 1] + 1;
+                uint num3 = TerrainIndices[i + 2] + 1;
+                uint num4 = num;
+                uint num5 = num2;
+                uint num6 = num3;
+                streamWriter.WriteLine("f {0}//{1} {2}//{3} {4}//{5}", num, num4, num2, num5, num3, num6);
+            }
+
+            streamWriter.Close();
         }
 
         public void Render(DeviceContext context, MeshRenderPath renderPath)

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if false
 namespace LevelEditorPlugin.Assets
 {
     [AssetBinding(DataType = typeof(FrostySdk.Ebx.DetachedSubWorldData))]
@@ -17,3 +18,4 @@ namespace LevelEditorPlugin.Assets
         }
     }
 }
+#endif

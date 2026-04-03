@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.ZoneStreamerSubWorldRod))]
@@ -17,3 +18,4 @@ namespace LevelEditorPlugin.Entities
         }
     }
 }
+#endif

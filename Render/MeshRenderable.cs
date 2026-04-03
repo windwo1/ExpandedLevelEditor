@@ -1,24 +1,30 @@
-﻿using Frosty.Core.Viewport;
+﻿using Frosty.Controls;
+using Frosty.Core;
+using Frosty.Core.Screens;
+using Frosty.Core.Viewport;
+using Frosty.Hash;
+using FrostySdk;
+using FrostySdk.IO;
+using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
+using FrostySdk.Resources;
+using LevelEditorPlugin.Resources;
+using LevelEditorPlugin.Screens;
+using MeshSetPlugin.Render;
 using SharpDX;
+using SharpDX.Direct3D;
+using SharpDX.Direct3D11;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TexturePlugin;
+using D3D11 = SharpDX.Direct3D11;
 using MeshSet = LevelEditorPlugin.Resources.MeshSet;
 using MeshSetLod = LevelEditorPlugin.Resources.MeshSetLod;
 using MeshSetSection = LevelEditorPlugin.Resources.MeshSetSection;
-using D3D11 = SharpDX.Direct3D11;
-using FrostySdk.Managers;
-using Frosty.Core;
-using FrostySdk.IO;
-using SharpDX.Direct3D;
-using System.IO;
-using FrostySdk;
-using SharpDX.Direct3D11;
-using Frosty.Core.Screens;
-using FrostySdk.Managers.Entries;
-using LevelEditorPlugin.Screens;
 
 namespace LevelEditorPlugin.Render
 {
@@ -30,187 +36,101 @@ namespace LevelEditorPlugin.Render
 
     public class MeshSectionRenderable
     {
-        public int StartIndex { get; private set; }
-        public int VertexOffset { get; private set; }
-        public int PrimitiveCount { get; private set; }
-        public PrimitiveTopology PrimitiveType { get; private set; }
-        public int VertexStride { get; private set; }
-
-        public D3D11.Buffer VertexBuffer { get; private set; }
-        public D3D11.VertexBufferBinding VertexBufferBinding { get; private set; }
+        public ShaderPermutation Permutation;
+        public MeshSetPlugin.Render.MeshRenderSkeleton Skeleton;
+        public D3D11.Buffer VertexParameters;
+        public D3D11.Buffer PixelParameters;
+        public D3D11.Buffer[] VertexBuffers;
+        public D3D11.VertexBufferBinding[] VertexBufferBindings;
+        public List<D3D11.ShaderResourceView> VertexTextures = new List<D3D11.ShaderResourceView>();
+        public List<D3D11.SamplerState> VertexSamplers = new List<D3D11.SamplerState>();
+        public List<D3D11.ShaderResourceView> PixelTextures = new List<D3D11.ShaderResourceView>();
+        public MeshSetSection MeshSection;
+        public int StartIndex;
+        public int VertexOffset;
+        public int PrimitiveCount;
+        public PrimitiveTopology PrimitiveType;
+        public int VertexStride;
 
         public List<Vector3> HitProxyVertices { get; private set; } = new List<Vector3>();
 
-        public MeshSectionRenderable(RenderCreateState state, MeshSetSection section, byte[] chunkData, bool isHitProxy)
+        public bool IsFallback;
+        public bool IsSelected;
+        public bool IsVisible = true;
+
+        // @temp
+        public List<uint> BoneIndices = new List<uint>();
+
+        public string DebugName => MeshSection.Name;
+
+        public void SetState(D3D11.DeviceContext context, MeshRenderPath renderPath)
         {
-            StartIndex = (int)section.StartIndex;
-            VertexOffset = (int)section.VertexOffset;
-            PrimitiveCount = (int)section.PrimitiveCount;
-            VertexStride = (int)Utilities.SizeOf<MeshVertex>();
-
-            switch (section.PrimitiveType)
+            if (Permutation.IsSkinned)
             {
-                case Resources.PrimitiveType.PrimitiveType_LineList: PrimitiveType = PrimitiveTopology.LineList; break;
-                case Resources.PrimitiveType.PrimitiveType_LineStrip: PrimitiveType = PrimitiveTopology.LineStrip; break;
-                case Resources.PrimitiveType.PrimitiveType_PointList: PrimitiveType = PrimitiveTopology.PointList; break;
-                case Resources.PrimitiveType.PrimitiveType_TriangleList: PrimitiveType = PrimitiveTopology.TriangleList; break;
-                case Resources.PrimitiveType.PrimitiveType_TriangleStrip: PrimitiveType = PrimitiveTopology.TriangleStrip; break;
-            }
-
-            MeshVertex[] vertices = new MeshVertex[section.VertexCount];
-            using (NativeReader reader = new NativeReader(new MemoryStream(chunkData)))
-            {
-                reader.Position = section.VertexOffset;
-                int totalStride = 0;
-
-                foreach (GeometryDeclarationDesc.Stream stream in section.GeometryDeclDesc[0].Streams)
+                // obtain bone matrices from skeleton
+                List<Matrix> boneMatrices = new List<Matrix>();
+                for (int i = 0; i < BoneIndices.Count; i++)
                 {
-                    if (stream.VertexStride == 0)
+                    int boneIndex = (int)BoneIndices[i];
+                    if ((BoneIndices[i] & 0x8000) != 0)
+                        boneIndex = (boneIndex & 0x7FFF) + Skeleton.BoneCount;
+
+                    while (i >= boneMatrices.Count)
+                        boneMatrices.Add(Matrix.Identity);
+
+                    if (boneIndex == -1)
                         continue;
 
-                    for (int v = 0; v < section.VertexCount; v++)
-                    {
-                        MeshVertex vertex = vertices[v];
-                        int currentStride = 0;
-
-                        foreach (GeometryDeclarationDesc.Element element in section.GeometryDeclDesc[0].Elements)
-                        {
-                            if (element.Usage == VertexElementUsage.Unknown)
-                                continue;
-
-                            if (currentStride >= totalStride && currentStride < (totalStride + stream.VertexStride))
-                            {
-                                if (element.Usage == VertexElementUsage.Pos)
-                                {
-                                    switch (element.Format)
-                                    {
-                                        case VertexElementFormat.Float3: vertex.Position = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); break;
-                                        case VertexElementFormat.Float4: vertex.Position = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); reader.ReadFloat(); break;
-                                        case VertexElementFormat.Half3: vertex.Position = new Vector3(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); break;
-                                        case VertexElementFormat.Half4: vertex.Position = new Vector3(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); reader.ReadUShort(); break;
-                                    }
-                                }
-                                else if (element.Usage == VertexElementUsage.Normal)
-                                {
-                                    switch (element.Format)
-                                    {
-                                        case VertexElementFormat.Float3: vertex.Normal = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); break;
-                                        case VertexElementFormat.Float4: vertex.Normal = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); reader.ReadFloat(); break;
-                                        case VertexElementFormat.Half3: vertex.Normal = new Vector3(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); break;
-                                        case VertexElementFormat.Half4: vertex.Normal = new Vector3(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); reader.ReadUShort(); break;
-                                    }
-                                }
-                                //else if (element.Usage == VertexElementUsage.Tangent)
-                                //{
-                                //    switch (element.Format)
-                                //    {
-                                //        case VertexElementFormat.Float3: vertex.Tangent = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); break;
-                                //        case VertexElementFormat.Float4: vertex.Tangent = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); reader.ReadFloat(); break;
-                                //        case VertexElementFormat.Half3: vertex.Tangent = new Vector3(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); break;
-                                //        case VertexElementFormat.Half4: vertex.Tangent = new Vector3(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); reader.ReadUShort(); break;
-                                //    }
-                                //}
-                                //else if (element.Usage == VertexElementUsage.Binormal)
-                                //{
-                                //    switch (element.Format)
-                                //    {
-                                //        case VertexElementFormat.Float3: vertex.Binormal = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f); break;
-                                //        case VertexElementFormat.Float4: vertex.Binormal = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()); break;
-                                //        case VertexElementFormat.Half3: vertex.Binormal = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f); break;
-                                //        case VertexElementFormat.Half4: vertex.Binormal = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort())); break;
-                                //    }
-                                //}
-                                //else if (element.Usage == VertexElementUsage.BinormalSign)
-                                //{
-                                //    switch (element.Format)
-                                //    {
-                                //        case VertexElementFormat.Half: vertex.Binormal = new Vector4(vertex.Binormal.X, vertex.Binormal.Y, vertex.Binormal.Z, HalfUtils.Unpack(reader.ReadUShort())); break;
-                                //        case VertexElementFormat.Float: vertex.Binormal = new Vector4(vertex.Binormal.X, vertex.Binormal.Y, vertex.Binormal.Z, reader.ReadFloat()); break;
-                                //    }
-                                //}
-                                else
-                                {
-                                    reader.Position += element.Size;
-                                }
-                            }
-
-                            currentStride += element.Size;
-                        }
-
-                        if (isHitProxy)
-                        {
-                            HitProxyVertices.Add(vertex.Position);
-                        }
-
-                        vertices[v] = vertex;
-
-                        if (currentStride < stream.VertexStride)
-                            reader.Position += (stream.VertexStride - currentStride);
-                    }
-
-                    totalStride += stream.VertexStride;
+                    boneMatrices[i] = Skeleton.GetBoneMatrix(boneIndex);
                 }
+
+                // update the bone buffer
+                Permutation.boneBuffer.Update(context, Skeleton.BoneCount, boneMatrices.ToArray());
             }
 
-            int size = (int)(Utilities.SizeOf<MeshVertex>() * section.VertexCount);
-            using (DataStream stream = new DataStream(size, false, true))
-            {
-                stream.WriteRange<MeshVertex>(vertices);
-                stream.Position = 0;
+            Permutation.SetState(context, renderPath);
 
-                VertexBuffer = new D3D11.Buffer(state.Device, stream, size, D3D11.ResourceUsage.Default, D3D11.BindFlags.VertexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
-                VertexBufferBinding = new D3D11.VertexBufferBinding(VertexBuffer, VertexStride, 0);
-            }
-        }
-
-        public void Dispose()
-        {
-            VertexBuffer.Dispose();
-        }
-
-        public void Render(D3D11.DeviceContext context, MeshRenderPath renderPath)
-        {
-            
             context.InputAssembler.PrimitiveTopology = PrimitiveType;
-            context.InputAssembler.SetVertexBuffers(0, VertexBufferBinding);
+            context.InputAssembler.SetVertexBuffers(0, VertexBufferBindings);
 
+            if (renderPath != MeshRenderPath.Shadows)
+            {
+                context.PixelShader.SetShaderResources(1, PixelTextures.ToArray());
+                context.PixelShader.SetConstantBuffer(2, PixelParameters);
+            }
+        }
+
+        public void Draw(D3D11.DeviceContext context)
+        {
             context.DrawIndexed(PrimitiveCount * 3, StartIndex, 0);
         }
     }
 
-    public class MeshLodRenderable : BaseRenderable
+    public class MeshLodRenderable : MeshRenderBase, IDisposable
     {
-        public List<MeshSectionRenderable> Sections { get; private set; } = new List<MeshSectionRenderable>();
+        public IEnumerable<MeshSectionRenderable> Sections => sections;
 
         private D3D11.Buffer indexBuffer;
         private SharpDX.DXGI.Format indexBufferFormat;
+        private List<MeshSectionRenderable> sections = new List<MeshSectionRenderable>();
+        private MeshSetLod meshLod;
+
+        private MeshMaterialCollection materials;
 
         private List<int> hitProxyIndices = new List<int>();
 
-        public MeshLodRenderable(RenderCreateState state, MeshSetLod lod, bool isHitProxy)
+        public MeshLodRenderable(RenderCreateState state, MeshSetLod lod, MeshMaterialCollection materials, MeshSetPlugin.Render.MeshRenderSkeleton skeleton)
         {
-            byte[] chunkData = GetChunkData(lod);
+            meshLod = lod;
+            this.materials = materials;
+
+            byte[] chunkData = GetChunkData();
             using (DataStream chunkStream = new DataStream((int)lod.IndexBufferSize, false, true))
             {
                 chunkStream.Write(chunkData, (int)lod.VertexBufferSize, (int)lod.IndexBufferSize);
                 chunkStream.Position = 0;
 
                 indexBuffer = new D3D11.Buffer(state.Device, chunkStream, (int)lod.IndexBufferSize, D3D11.ResourceUsage.Default, D3D11.BindFlags.IndexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, lod.IndexUnitSize / 8);
-                if (isHitProxy)
-                {
-                    using (NativeReader reader = new NativeReader(new MemoryStream(chunkData)))
-                    {
-                        reader.Position = lod.VertexBufferSize;
-                        while (reader.Position < reader.Length)
-                        {
-                            int index = (lod.IndexUnitSize == 16)
-                                ? reader.ReadUShort()
-                                : reader.ReadInt();
-
-                            hitProxyIndices.Add(index);
-                        }
-                    }
-                }
             }
 
             indexBufferFormat = (lod.IndexUnitSize == 16)
@@ -219,21 +139,272 @@ namespace LevelEditorPlugin.Render
 
             foreach (MeshSetSection section in lod.Sections)
             {
-                if (!lod.IsSectionRenderable(section))
-                    continue;
+                // @todo: Fix DAI
+                if (lod.IsSectionRenderable(section) || lod.IsSectionInCategory(section, MeshSubsetCategory.MeshSubsetCategory_ZOnly))
+                {
+                    if (section.VertexCount == 0)
+                        continue;
 
-                if (section.VertexCount == 0)
-                    continue;
+                    MeshMaterial material = materials[section.MaterialId];
+                    EbxAssetEntry shaderAsset = App.AssetManager.GetEbxEntry(material.Shader.External.FileGuid);
+                    if (shaderAsset == null)
+                        continue;
 
-                MeshSectionRenderable renderSection = new MeshSectionRenderable(state, section, chunkData, isHitProxy);
-                Sections.Add(renderSection);
+                    ShaderPermutation permutation = state.ShaderLibrary.GetUserShader(shaderAsset.Name, section.GeometryDeclDesc[0]);
+
+                    MeshSectionRenderable renderSection = new MeshSectionRenderable();
+                    if (permutation != null)
+                    {
+                        if (!permutation.LoadShaders(state.Device))
+                            permutation = null;
+                    }
+                    renderSection.StartIndex = (int)section.StartIndex;
+                    renderSection.VertexOffset = (int)section.VertexOffset;
+                    renderSection.PrimitiveCount = (int)section.PrimitiveCount;
+                    renderSection.VertexStride = (int)section.VertexStride;
+                    renderSection.MeshSection = section;
+
+                    if (lod.Type == MeshType.MeshType_Composite)
+                    {
+                        skeleton = new MeshSetPlugin.Render.MeshRenderSkeleton();
+                        foreach (LinearTransform lt in lod.PartTransforms)
+                        {
+                            skeleton.AddBone(new MeshSetPlugin.Render.MeshRenderSkeleton.Bone()
+                            {
+                                NameHash = Fnv1.HashString("Part"),
+                                ModelPose = Matrix.Identity,
+                                LocalPose = SharpDXUtils.FromLinearTransform(lt),
+                                ParentBoneId = -1
+                            });
+                        }
+                    }
+
+                    renderSection.Skeleton = skeleton;
+
+                    switch (section.PrimitiveType)
+                    {
+                        case PrimitiveType.PrimitiveType_LineList: renderSection.PrimitiveType = PrimitiveTopology.LineList; break;
+                        case PrimitiveType.PrimitiveType_LineStrip: renderSection.PrimitiveType = PrimitiveTopology.LineStrip; break;
+                        case PrimitiveType.PrimitiveType_PointList: renderSection.PrimitiveType = PrimitiveTopology.PointList; break;
+                        case PrimitiveType.PrimitiveType_TriangleList: renderSection.PrimitiveType = PrimitiveTopology.TriangleList; break;
+                        case PrimitiveType.PrimitiveType_TriangleStrip: renderSection.PrimitiveType = PrimitiveTopology.TriangleStrip; break;
+                    }
+                    sections.Add(renderSection);
+
+                    RebuildSection(state, renderSection, permutation, chunkData);
+                    if (renderSection.IsFallback)
+                    {
+                        renderSection.Permutation = state.ShaderLibrary.GetFallbackShader();
+                        renderSection.Permutation.AssignFallbackParameters(state, renderSection, material);
+                    }
+                    else
+                    {
+                        renderSection.Permutation = permutation;
+                        renderSection.Permutation.AssignParameters(state, material, ref renderSection.PixelParameters, ref renderSection.PixelTextures);
+                    }
+                }
             }
         }
 
-        private byte[] GetChunkData(MeshSetLod lod)
+        private TextureExporter exporter = new TextureExporter();
+
+        public void UpdateSectionMaterial(RenderCreateState state, MeshSectionRenderable section, MeshMaterial material)
         {
-            ChunkAssetEntry entry = App.AssetManager.GetChunkEntry(lod.ChunkId);
-            byte[] chunkData = lod.InlineData;
+            EbxAssetEntry shaderAsset = App.AssetManager.GetEbxEntry(material.Shader.External.FileGuid);
+            ShaderPermutation permutation = (shaderAsset == null) ? null : state.ShaderLibrary.GetUserShader(shaderAsset.Name, section.MeshSection.GeometryDeclDesc[0]);
+            ShaderPermutation oldPermutation = section.Permutation;
+
+            if (permutation != null)
+            {
+                if (!permutation.LoadShaders(state.Device))
+                    permutation = null;
+            }
+
+            bool bRequiresRebuild = (section.IsFallback && permutation != null) || (!section.IsFallback && permutation == null);
+            if (bRequiresRebuild)
+                RebuildSection(state, section, permutation, GetChunkData());
+
+            if (section.IsFallback)
+            {
+                section.Permutation = state.ShaderLibrary.GetFallbackShader();
+                section.Permutation.AssignFallbackParameters(state, section, material);
+            }
+            else
+            {
+                section.Permutation = permutation;
+                section.Permutation.AssignParameters(state, material, ref section.PixelParameters, ref section.PixelTextures);
+            }
+
+            state.ShaderLibrary.UnloadShader(oldPermutation);
+        }
+
+        public void SetMaterial(RenderCreateState state, int materialIdx, MeshMaterial material)
+        {
+            foreach (MeshSectionRenderable section in sections)
+            {
+                if (section.MeshSection.MaterialId == materialIdx)
+                    UpdateSectionMaterial(state, section, material);
+            }
+        }
+
+        public void SetMaterials(RenderCreateState state, MeshMaterialCollection materials)
+        {
+            foreach (MeshSectionRenderable section in sections)
+            {
+                if (section.MeshSection.MaterialId < materials.Count)
+                    UpdateSectionMaterial(state, section, materials[section.MeshSection.MaterialId]);
+            }
+        }
+
+        public MeshSectionRenderable GetSection(int idx)
+        {
+            if (idx >= sections.Count)
+                return null;
+            return sections[idx];
+        }
+
+        public override void Render(D3D11.DeviceContext context, MeshRenderPath renderPath)
+        {
+            if (sections.Count == 0)
+                return;
+
+            context.InputAssembler.SetIndexBuffer(indexBuffer, indexBufferFormat, 0);
+            foreach (MeshSectionRenderable section in sections)
+            {
+                // during shadow pass, draw Z-Only meshes
+                if (renderPath == MeshRenderPath.Shadows && !meshLod.IsSectionInCategory(section.MeshSection, MeshSubsetCategory.MeshSubsetCategory_ZOnly))
+                    continue;
+
+                // during deferred pass, draw renderable meshes
+                if (renderPath != MeshRenderPath.Shadows && !meshLod.IsSectionRenderable(section.MeshSection))
+                    continue;
+
+                // only render selected sections during selection pass
+                if (renderPath == MeshRenderPath.Selection && !section.IsSelected)
+                    continue;
+
+                // dont render invisible sections (exception during selection pass if selected)
+                if (!section.IsVisible)
+                {
+                    if (renderPath != MeshRenderPath.Selection || !section.IsSelected)
+                        continue;
+                }
+
+                D3DUtils.BeginPerfEvent(context, section.DebugName);
+                {
+                    D3D11.RasterizerState oldState = context.Rasterizer.State;
+
+                    section.SetState(context, renderPath);
+                    section.Draw(context);
+
+                    context.Rasterizer.State = oldState;
+                }
+                D3DUtils.EndPerfEvent(context);
+            }
+        }
+
+        private void RebuildSection(RenderCreateState state, MeshSectionRenderable section, ShaderPermutation permutation, byte[] chunkData)
+        {
+            if (section.VertexBuffers != null)
+            {
+                foreach (D3D11.Buffer vb in section.VertexBuffers)
+                    vb.Dispose();
+            }
+
+            using (NativeReader reader = new NativeReader(new MemoryStream(chunkData)))
+            {
+                reader.Position = section.VertexOffset;
+                if (permutation == null)
+                {
+                    section.VertexStride = Utilities.SizeOf<FallbackVertex>();
+                    section.IsFallback = true;
+
+                    int size = (int)(section.VertexStride * section.MeshSection.VertexCount);
+                    AssignFallbackVertices(state, section, section.MeshSection, reader, meshLod.VertexBufferSize);
+                }
+                else
+                {
+                    section.IsFallback = false;
+                    section.VertexBuffers = new D3D11.Buffer[section.MeshSection.GeometryDeclDesc[0].StreamCount];
+                    section.VertexBufferBindings = new D3D11.VertexBufferBinding[section.MeshSection.GeometryDeclDesc[0].StreamCount];
+
+                    for (int i = 0; i < section.VertexBuffers.Length; i++)
+                    {
+                        GeometryDeclarationDesc.Stream stream = section.MeshSection.GeometryDeclDesc[0].Streams[i];
+
+                        int size = (int)(stream.VertexStride * section.MeshSection.VertexCount);
+                        using (DataStream chunkStream = new DataStream(size, false, true))
+                        {
+                            chunkStream.Write(reader.ReadBytes(size), 0, size);
+                            chunkStream.Position = 0;
+
+                            section.VertexBuffers[i] = new D3D11.Buffer(state.Device, chunkStream, size, D3D11.ResourceUsage.Default, D3D11.BindFlags.VertexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
+                            section.VertexBufferBindings[i] = new D3D11.VertexBufferBinding(section.VertexBuffers[i], stream.VertexStride, 0);
+                        }
+                    }
+                }
+            }
+
+            if (meshLod.Type == MeshType.MeshType_Rigid && section.IsFallback)
+            {
+                // if rigid, then add a dummy entry for the fallback shader
+                section.BoneIndices.Add(0);
+            }
+            else if (meshLod.Type == MeshType.MeshType_Composite)
+            {
+                if (section.MeshSection.BoneList.Count > 0)
+                {
+                    uint i = 0;
+                    foreach (uint boneIdx in section.MeshSection.BoneList)
+                    {
+                        while (section.BoneIndices.Count <= boneIdx)
+                            section.BoneIndices.Add(i++);
+                    }
+                }
+                else if (meshLod.PartCount > 0)
+                {
+                    for (uint i = 0; i < meshLod.PartCount; i++)
+                        section.BoneIndices.Add(i);
+                }
+                else
+                {
+                    section.BoneIndices.Add(0);
+                }
+            }
+            else
+            {
+                // add section bones to list
+                foreach (ushort boneId in section.MeshSection.BoneList)
+                    section.BoneIndices.Add(boneId);
+
+                // special handling for games that only use the mesh lod bone list
+                if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Anthem || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa19 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa20
+#if FROSTY_DEVELOPER || FROSTY_ALPHA
+                    || ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesBattleforNeighborville
+#endif
+                    )
+                {
+                    section.BoneIndices.Clear();
+                    section.BoneIndices.AddRange(meshLod.BoneIndexArray);
+                }
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden19 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa17 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa18 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden20)
+                {
+                    section.BoneIndices.Clear();
+                    uint i = 0;
+
+                    foreach (uint boneIdx in meshLod.BoneIndexArray)
+                    {
+                        while (section.BoneIndices.Count <= boneIdx)
+                            section.BoneIndices.Add(i++);
+                    }
+                }
+            }
+        }
+
+        private byte[] GetChunkData()
+        {
+            ChunkAssetEntry entry = App.AssetManager.GetChunkEntry(meshLod.ChunkId);
+            byte[] chunkData = meshLod.InlineData;
             if (entry != null)
                 chunkData = new NativeReader(App.AssetManager.GetChunk(entry)).ReadToEnd();
             return chunkData;
@@ -263,30 +434,405 @@ namespace LevelEditorPlugin.Render
             return false;
         }
 
+
+        /// <summary>
+        /// Re-organizes the vertices into the fallback shader layout and writes them to the vertex buffer
+        /// </summary>
+        private void AssignFallbackVertices(RenderCreateState state, MeshSectionRenderable section, MeshSetSection meshSection, NativeReader reader, long indexBufferOffset)
+        {
+            FallbackVertex[] vertices = new FallbackVertex[meshSection.VertexCount];
+            int totalStride = 0;
+            bool bitangentSign = false;
+            //bool bRecalculateNormals = ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden20;
+
+            // re-organize vertices into the fallback shader layout
+            foreach (GeometryDeclarationDesc.Stream stream in meshSection.GeometryDeclDesc[0].Streams)
+            {
+                if (stream.VertexStride == 0)
+                    continue;
+
+                for (int v = 0; v < meshSection.VertexCount; v++)
+                {
+                    FallbackVertex vertex = vertices[v];
+                    int currentStride = 0;
+
+                    foreach (GeometryDeclarationDesc.Element element in meshSection.GeometryDeclDesc[0].Elements)
+                    {
+                        if (element.Usage == VertexElementUsage.Unknown)
+                            continue;
+
+                        //reader.Position = section.VertexOffset + v * section.VertexStride + element.Offset;
+
+                        if (currentStride >= totalStride && currentStride < (totalStride + stream.VertexStride))
+                        {
+                            if (element.Usage == VertexElementUsage.Pos)
+                            {
+                                if (element.Format == VertexElementFormat.Float3 || element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Position = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat());
+                                    if (element.Format == VertexElementFormat.Float4)
+                                        reader.ReadFloat();
+
+                                }
+                                else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Position = new Vector3(HalfUtils.Unpack(reader.ReadUShort()),
+                                                                  HalfUtils.Unpack(reader.ReadUShort()),
+                                                                  HalfUtils.Unpack(reader.ReadUShort()));
+                                    if (element.Format == VertexElementFormat.Half4)
+                                        HalfUtils.Unpack(reader.ReadUShort());
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.Normal)
+                            {
+                                if (element.Format == VertexElementFormat.Float3 || element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Normal = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
+                                    if (element.Format == VertexElementFormat.Float4)
+                                        vertex.Normal.W = reader.ReadFloat();
+                                }
+                                else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Normal = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
+                                    if (element.Format == VertexElementFormat.Half4)
+                                        vertex.Normal.W = HalfUtils.Unpack(reader.ReadUShort());
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.Binormal)
+                            {
+                                if (element.Format == VertexElementFormat.Float3 || element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Bitangent = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
+                                    if (element.Format == VertexElementFormat.Float4)
+                                        vertex.Bitangent.W = reader.ReadFloat();
+                                }
+                                else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Bitangent = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
+                                    if (element.Format == VertexElementFormat.Half4)
+                                        vertex.Bitangent.W = HalfUtils.Unpack(reader.ReadUShort());
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.Tangent)
+                            {
+                                if (element.Format == VertexElementFormat.Float3 || element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Tangent = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
+                                    if (element.Format == VertexElementFormat.Float4)
+                                        vertex.Tangent.W = reader.ReadFloat();
+                                }
+                                else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Tangent = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
+                                    if (element.Format == VertexElementFormat.Half4)
+                                        vertex.Tangent.W = HalfUtils.Unpack(reader.ReadUShort());
+                                }
+
+                                //if (vertex.BitangentSign == 0.0f)
+                                //    vertex.BitangentSign = Vector3.Dot(Vector3.Cross(vertex.Normal, vertex.Tangent), vertex.Bitangent) < 0.0f ? -1.0f : 1.0f;
+                            }
+                            else if (element.Usage == VertexElementUsage.BinormalSign)
+                            {
+                                if (element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Tangent = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
+                                    vertex.Bitangent.W = HalfUtils.Unpack(reader.ReadUShort());
+                                }
+                                else if (element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Tangent = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
+                                    vertex.Bitangent.W = reader.ReadFloat();
+                                }
+                                else
+                                {
+                                    vertex.Bitangent.W = (element.Format == VertexElementFormat.Float)
+                                        ? reader.ReadFloat()
+                                        : HalfUtils.Unpack(reader.ReadUShort());
+                                }
+                                bitangentSign = true;
+                            }
+                            else if (element.Usage == VertexElementUsage.TangentSpace)
+                            {
+                                if (element.Format == VertexElementFormat.UByte4N)
+                                {
+                                    vertex.Bitangent = new Vector4(reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f);
+                                    vertex.TangentSpace = 1;
+                                }
+                                else if (element.Format == VertexElementFormat.UShort4N)
+                                {
+                                    vertex.Bitangent = new Vector4(reader.ReadUShort() / 65535.0f, reader.ReadUShort() / 65535.0f, reader.ReadUShort() / 65535.0f, reader.ReadUShort() / 65535.0f);
+                                    vertex.TangentSpace = 1;
+                                }
+                                else
+                                    vertex.TangentSpace = reader.ReadUInt();
+                            }
+                            else if (element.Usage == VertexElementUsage.TexCoord0)
+                            {
+                                if (element.Format == VertexElementFormat.Float2)
+                                {
+                                    vertex.TexCoord0 = new Vector2(reader.ReadFloat(), reader.ReadFloat());
+                                }
+                                else if (element.Format == VertexElementFormat.Half2)
+                                {
+                                    vertex.TexCoord0 = new Vector2(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()));
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.TexCoord1)
+                            {
+                                if (element.Format == VertexElementFormat.Float2)
+                                {
+                                    vertex.TexCoord1 = new Vector2(reader.ReadFloat(), reader.ReadFloat());
+                                }
+                                else if (element.Format == VertexElementFormat.Half2)
+                                {
+                                    vertex.TexCoord1 = new Vector2(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()));
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.TexCoord2)
+                            {
+                                if (element.Format == VertexElementFormat.Float2)
+                                {
+                                    vertex.TexCoord2 = new Vector2(reader.ReadFloat(), reader.ReadFloat());
+                                }
+                                else if (element.Format == VertexElementFormat.Half2)
+                                {
+                                    vertex.TexCoord2 = new Vector2(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()));
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.Color0)
+                            {
+                                if (element.Format == VertexElementFormat.UByte4N)
+                                {
+                                    vertex.Color0 = new Vector4(reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f);
+                                }
+                                else if (element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Color0 = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat());
+                                }
+                                else if (element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Color0 = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()));
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.Color1)
+                            {
+                                if (element.Format == VertexElementFormat.UByte4N)
+                                {
+                                    vertex.Color1 = new Vector4(reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f, reader.ReadByte() / 255.0f);
+                                }
+                                else if (element.Format == VertexElementFormat.Float4)
+                                {
+                                    vertex.Color1 = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat());
+                                }
+                                else if (element.Format == VertexElementFormat.Half4)
+                                {
+                                    vertex.Color1 = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()));
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.BoneIndices)
+                            {
+                                if (element.Format == VertexElementFormat.UShort4)
+                                {
+                                    vertex.BoneIndices0 = reader.ReadUShort();
+                                    vertex.BoneIndices1 = reader.ReadUShort();
+                                    vertex.BoneIndices2 = reader.ReadUShort();
+                                    vertex.BoneIndices3 = reader.ReadUShort();
+                                }
+                                else
+                                {
+                                    vertex.BoneIndices0 = reader.ReadByte();
+                                    vertex.BoneIndices1 = reader.ReadByte();
+                                    vertex.BoneIndices2 = reader.ReadByte();
+                                    vertex.BoneIndices3 = reader.ReadByte();
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.BoneIndices2)
+                            {
+                                if (element.Format == VertexElementFormat.UShort4)
+                                {
+                                    vertex.BoneIndices4 = reader.ReadUShort();
+                                    vertex.BoneIndices5 = reader.ReadUShort();
+                                    vertex.BoneIndices6 = reader.ReadUShort();
+                                    vertex.BoneIndices7 = reader.ReadUShort();
+                                }
+                                else
+                                {
+                                    vertex.BoneIndices4 = reader.ReadByte();
+                                    vertex.BoneIndices5 = reader.ReadByte();
+                                    vertex.BoneIndices6 = reader.ReadByte();
+                                    vertex.BoneIndices7 = reader.ReadByte();
+                                }
+                            }
+                            else if (element.Usage == VertexElementUsage.BoneWeights)
+                            {
+                                vertex.BoneWeights0 = reader.ReadByte() / 255.0f;
+                                vertex.BoneWeights1 = reader.ReadByte() / 255.0f;
+                                vertex.BoneWeights2 = reader.ReadByte() / 255.0f;
+                                vertex.BoneWeights3 = reader.ReadByte() / 255.0f;
+                            }
+                            else if (element.Usage == VertexElementUsage.BoneWeights2)
+                            {
+                                vertex.BoneWeights4 = reader.ReadByte() / 255.0f;
+                                vertex.BoneWeights5 = reader.ReadByte() / 255.0f;
+                                vertex.BoneWeights6 = reader.ReadByte() / 255.0f;
+                                vertex.BoneWeights7 = reader.ReadByte() / 255.0f;
+                            }
+                            else
+                                reader.Position += element.Size;
+                        }
+
+                        currentStride += element.Size;
+                    }
+
+                    if (meshLod.Type == MeshType.MeshType_Composite)
+                    {
+                        vertex.BoneWeights3 = 1.0f;
+                    }
+                    else if (meshLod.Type == MeshType.MeshType_Rigid /*|| meshLod.Type == MeshType.MeshType_Composite*/)
+                    {
+                        vertex.BoneIndices0 = 0;
+                        vertex.BoneIndices1 = 0;
+                        vertex.BoneIndices2 = 0;
+                        vertex.BoneIndices3 = 0;
+                        vertex.BoneIndices4 = 0;
+                        vertex.BoneIndices5 = 0;
+                        vertex.BoneIndices6 = 0;
+                        vertex.BoneIndices7 = 0;
+
+                        vertex.BoneWeights0 = 0.0f;
+                        vertex.BoneWeights1 = 0.0f;
+                        vertex.BoneWeights2 = 0.0f;
+                        vertex.BoneWeights3 = 1.0f;
+                        vertex.BoneWeights4 = 0.0f;
+                        vertex.BoneWeights5 = 0.0f;
+                        vertex.BoneWeights6 = 0.0f;
+                        vertex.BoneWeights7 = 0.0f;
+                    }
+
+                    vertices[v] = vertex;
+
+                    if (currentStride < stream.VertexStride)
+                        reader.Position += (stream.VertexStride - currentStride);
+                }
+
+                totalStride += stream.VertexStride;
+            }
+
+            //if (bRecalculateNormals)
+            //{
+            //    reader.Position = indexBufferOffset + (section.StartIndex * ((indexBufferFormat == SharpDX.DXGI.Format.R16_UInt) ? 2 : 4));
+            //    uint[] indices = new uint[meshSection.PrimitiveCount * 3];
+            //    for (int i = 0; i < indices.Length; i++)
+            //        indices[i] = (this.indexBufferFormat == SharpDX.DXGI.Format.R16_UInt) ? reader.ReadUShort() : reader.ReadUInt();
+
+            //    Vector3[] norm = new Vector3[vertices.Length];
+            //    Vector3[] tan1 = new Vector3[vertices.Length];
+            //    Vector3[] tan2 = new Vector3[vertices.Length];
+
+            //    for (int i = 0; i < section.PrimitiveCount * 3; i += 3)
+            //    {
+            //        FallbackVertex v1 = vertices[(int)indices[i + 0]];
+            //        FallbackVertex v2 = vertices[(int)indices[i + 1]];
+            //        FallbackVertex v3 = vertices[(int)indices[i + 2]];
+
+            //        Vector3 pos1 = v1.Position;
+            //        Vector3 pos2 = v2.Position;
+            //        Vector3 pos3 = v3.Position;
+
+            //        Vector3 edge1 = (pos2 - pos1);
+            //        Vector3 edge2 = (pos3 - pos1);
+
+            //        Vector3 tangentX = edge1;
+            //        Vector3 tangentZ = Vector3.Cross(edge1, edge2);
+
+            //        tangentX.Normalize();
+            //        tangentZ.Normalize();
+
+            //        Vector3 tangentY = Vector3.Cross(tangentX, tangentZ);
+            //        tangentY.Normalize();
+
+            //        v1.Tangent = new Vector4(tangentX, 0.0f);
+            //        v2.Tangent = new Vector4(tangentX, 0.0f);
+            //        v3.Tangent = new Vector4(tangentX, 0.0f);
+
+            //        v1.Bitangent = new Vector4(tangentY, 0.0f);
+            //        v2.Bitangent = new Vector4(tangentY, 0.0f);
+            //        v3.Bitangent = new Vector4(tangentY, 0.0f);
+
+            //        v1.Normal = new Vector4(tangentZ, 0.0f);
+            //        v2.Normal = new Vector4(tangentZ, 0.0f);
+            //        v3.Normal = new Vector4(tangentZ, 0.0f);
+
+            //        float bitangent = Vector3.Dot(Vector3.Cross(tangentZ, tangentX), tangentY) < 0.0f ? -1.0f : 1.0f;
+            //        v1.Bitangent *= bitangent;
+            //        v2.Bitangent *= bitangent;
+            //        v3.Bitangent *= bitangent;
+
+            //        vertices[(int)indices[i + 0]] = v1;
+            //        vertices[(int)indices[i + 1]] = v2;
+            //        vertices[(int)indices[i + 2]] = v3;
+
+            //        //bitangentSign = true;
+            //    }
+            //}
+
+            if (bitangentSign)
+            {
+                for (int v = 0; v < meshSection.VertexCount; v++)
+                {
+                    FallbackVertex vertex = vertices[v];
+                    Vector3 t = new Vector3(vertex.Tangent.X, vertex.Tangent.Y, vertex.Tangent.Z);
+                    Vector3 n = new Vector3(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z);
+                    Vector3 b = Vector3.Cross(n, t) * vertex.Bitangent.W;
+
+                    vertex.Bitangent = new Vector4(b.X, b.Y, b.Z, 1.0f);
+                    vertex.Bitangent.Normalize();
+                    vertices[v] = vertex;
+                }
+            }
+
+            section.VertexBuffers = new D3D11.Buffer[1];
+            section.VertexBufferBindings = new D3D11.VertexBufferBinding[1];
+
+            // write them to the vertex buffer
+            int size = (int)(Utilities.SizeOf<FallbackVertex>() * meshSection.VertexCount);
+            using (DataStream stream = new DataStream(size, false, true))
+            {
+                foreach (FallbackVertex vert in vertices)
+                    stream.Write<FallbackVertex>(vert);
+                stream.Position = 0;
+
+                section.VertexBuffers[0] = new D3D11.Buffer(state.Device, stream, size, D3D11.ResourceUsage.Default, D3D11.BindFlags.VertexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
+                section.VertexBufferBindings[0] = new D3D11.VertexBufferBinding(section.VertexBuffers[0], section.VertexStride, 0);
+            }
+        }
+
         public void Dispose()
         {
-            foreach (MeshSectionRenderable section in Sections)
-                section.Dispose();
+            foreach (MeshSectionRenderable section in sections)
+            {
+                foreach (D3D11.Buffer vb in section.VertexBuffers)
+                    vb.Dispose();
+                section.PixelParameters?.Dispose();
+                section.PixelTextures.Clear();
+            }
 
             indexBuffer.Dispose();
         }
-
-        public override void Render(D3D11.DeviceContext context, MeshRenderPath renderPath)
-        {
-            context.InputAssembler.SetIndexBuffer(indexBuffer, indexBufferFormat, 0);
-            foreach (MeshSectionRenderable section in Sections)
-                section.Render(context, renderPath);
-        }
     }
 
-    public class MeshRenderable : BaseRenderable
+    public class MeshRenderable : IDisposable
     {
-        public BoundingBox Bounds { get; private set; }
+        public BoundingBox Bounds;
+        public IEnumerable<MeshLodRenderable> LODs => lods;
+        private List<MeshLodRenderable> lods = new List<MeshLodRenderable>();
+
         public List<MeshLodRenderable> Lods { get; private set; } = new List<MeshLodRenderable>();
         public float[] LodDistances { get; private set; } = new float[6];
         public float CullScreenArea { get; private set; } = 0.0f;
 
-        public MeshRenderable(RenderCreateState state, MeshSet meshSet, FrostySdk.Ebx.MeshLodGroup lodGroup)
+
+        public MeshRenderable(RenderCreateState state, MeshSet meshSet, MeshMaterialCollection materials, FrostySdk.Ebx.MeshLodGroup lodGroup, MeshRenderSkeleton skeleton)
         {
             LodDistances[0] = lodGroup.Lod1Distance;
             LodDistances[1] = lodGroup.Lod2Distance;
@@ -296,13 +842,11 @@ namespace LevelEditorPlugin.Render
             LodDistances[5] = lodGroup.Lod6Distance;
             CullScreenArea = lodGroup.CullScreenArea;
 
-            bool isHitProxyLod = true;
+
             foreach (MeshSetLod lod in meshSet.Lods)
             {
-                MeshLodRenderable renderLod = new MeshLodRenderable(state, lod, isHitProxyLod);
-                Lods.Add(renderLod);
-
-                isHitProxyLod = false;
+                MeshLodRenderable renderLod = new MeshLodRenderable(state, lod, materials, skeleton);
+                lods.Add(renderLod);
             }
 
             Bounds = new BoundingBox(
@@ -311,16 +855,22 @@ namespace LevelEditorPlugin.Render
                 );
         }
 
-        public MeshLodRenderable GetLod(int index)
+        public void SetMaterials(RenderCreateState state, MeshMaterialCollection materials)
         {
-            if (index >= Lods.Count)
-                return Lods[Lods.Count - 1];
-            return Lods[index];
+            foreach (MeshLodRenderable lod in lods)
+                lod.SetMaterials(state, materials);
+        }
+
+        public MeshLodRenderable GetLod(int idx)
+        {
+            if (idx >= lods.Count)
+                return lods[lods.Count - 1];
+            return lods[idx];
         }
 
         public void Dispose()
         {
-            foreach (MeshLodRenderable lod in Lods)
+            foreach (MeshLodRenderable lod in lods)
                 lod.Dispose();
         }
     }

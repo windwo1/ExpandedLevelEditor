@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CString = FrostySdk.Ebx.CString;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.StringHubEntityData))]
@@ -56,3 +57,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

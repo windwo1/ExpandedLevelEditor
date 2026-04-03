@@ -1,12 +1,16 @@
 ﻿using Frosty.Core;
 using Frosty.Core.Viewport;
+using FrostySdk.IO;
 using LevelEditorPlugin.Editors;
+using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Managers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media.Media3D;
 
 namespace LevelEditorPlugin.Assets
 {
@@ -29,8 +33,15 @@ namespace LevelEditorPlugin.Assets
             if (MeshData == null)
             {
                 Resources.MeshSet meshSet = App.AssetManager.GetResAs<Resources.MeshSet>(App.AssetManager.GetResEntry(Data.MeshSetResource));
-                MeshData = new Render.MeshRenderable(state, meshSet, lodGroup.Data);
+                MeshData = new Render.MeshRenderable(state, meshSet, GetMaterials(state, this), lodGroup.Data, new MeshSetPlugin.Render.MeshRenderSkeleton());
             }
+        }
+
+        private MeshMaterialCollection GetMaterials(RenderCreateState state, MeshAsset asset)
+        {
+            EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(asset.FileGuid));
+
+            return new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()); ;
         }
 
         public override void Dispose()

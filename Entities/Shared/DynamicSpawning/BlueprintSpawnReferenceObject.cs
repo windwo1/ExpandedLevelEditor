@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using SharpDX;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.BlueprintSpawnReferenceObjectData))]
@@ -22,3 +23,4 @@ namespace LevelEditorPlugin.Entities
         }
     }
 }
+#endif

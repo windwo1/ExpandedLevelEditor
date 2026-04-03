@@ -1,12 +1,22 @@
-﻿using Frosty.Core.Screens;
+﻿using Frosty.Controls;
+using Frosty.Core;
+using Frosty.Core.Controls;
+using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using FrostySdk;
+using FrostySdk.IO;
+using FrostySdk.Managers.Entries;
+using LevelEditorPlugin.Assets;
 using LevelEditorPlugin.Entities;
 using SharpDX;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Security.AccessControl;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using D3D11 = SharpDX.Direct3D11;
 
@@ -21,6 +31,8 @@ namespace LevelEditorPlugin.Render.Proxies
         private D3D11.Buffer pixelParameters;
         private List<D3D11.ShaderResourceView> pixelTextures = new List<D3D11.ShaderResourceView>();
         private MeshMaterial material;
+
+        public static MeshMaterialCollection Materials;
 
         private static GeometryDeclarationDesc GeometryDecl = GeometryDeclarationDesc.Create(new GeometryDeclarationDesc.Element[]
         {
@@ -43,25 +55,28 @@ namespace LevelEditorPlugin.Render.Proxies
 
             RecalculateBoundingBox();
 
-            material = new MeshMaterial();
-            material.VectorParameters.Add(
-                new FrostySdk.Ebx.VectorShaderParameter()
-                {
-                    ParameterName = "Color",
-                    ParameterType = FrostySdk.Ebx.ShaderParameterType.ShaderParameterType_Vec4,
-                    Value = new FrostySdk.Ebx.Vec4()
-                    {
-                        x = OwnerEntity.Owner.Layer.LayerColor.Red,
-                        y = OwnerEntity.Owner.Layer.LayerColor.Green,
-                        z = OwnerEntity.Owner.Layer.LayerColor.Blue,
-                        w = 1.0f
-                    }
-                });
+            ApplyMaterials(state);
 
-            permutation = state.ShaderLibrary.GetUserShader("LevelShader", GeometryDecl);
+            permutation = state.ShaderLibrary.GetFallbackShader();
             permutation.IsTwoSided = true;
             permutation.LoadShaders(state.Device);
-            permutation.AssignParameters(state, material, ref pixelParameters, ref pixelTextures);
+            permutation.AssignParameters(state, ref pixelParameters, ref pixelTextures);
+        }
+
+        private void ApplyMaterials(RenderCreateState state)
+        {
+            MeshAsset asset = null;
+            if (OwnerEntity is MeshProxyEntity meshProxyEntity) asset = meshProxyEntity.Mesh;
+            if (OwnerEntity is StaticModelEntity staticModelEntity) asset = staticModelEntity.Mesh;
+            if (OwnerEntity is ClothEntity clothEntity) asset = clothEntity.Mesh;
+            if (OwnerEntity is VegetationTreeEntity vegetationTreeEntity) asset = vegetationTreeEntity.Mesh;
+
+            if (asset != null)
+            {
+                EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(asset.FileGuid));
+
+                renderData.SetMaterials(state, new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()));
+            }
         }
 
         public ModelRenderProxy(RenderCreateState state, MeshProxyEntity owner)
@@ -74,7 +89,7 @@ namespace LevelEditorPlugin.Render.Proxies
         {
         }
 
-#if MASS_EFFECT
+#if false
         public ModelRenderProxy(RenderCreateState state, BangerEntity owner)
             : this(state, owner, owner.Mesh.MeshData)
         {
@@ -120,25 +135,6 @@ namespace LevelEditorPlugin.Render.Proxies
             }
 
             return new MeshRenderInstance() { RenderMesh = this, Transform = Transform };
-        }
-
-        public override void SetSelected(RenderCreateState state, bool newSelected)
-        {
-            material.SetVectorParameter("Color", newSelected
-                ? new FrostySdk.Ebx.Vec4() { x = 1.0f, y = 1.0f, z = 0.0f, w = 1.0f }
-                : new FrostySdk.Ebx.Vec4()
-                {
-                    x = OwnerEntity.Owner.Layer.LayerColor.Red,
-                    y = OwnerEntity.Owner.Layer.LayerColor.Green,
-                    z = OwnerEntity.Owner.Layer.LayerColor.Blue,
-                    w = 1.0f
-                });
-            permutation.AssignParameters(state, material, ref pixelParameters, ref pixelTextures);
-        }
-
-        public override bool HitTest(Ray hitTestRay, out Vector3 hitLocation)
-        {
-            return renderData.Lods[0].HitTest(Transform, hitTestRay, out hitLocation);
         }
 
         public override void RecalculateBoundingBox()

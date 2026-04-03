@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.Int64HubEntityData))]
@@ -16,3 +17,4 @@ namespace LevelEditorPlugin.Entities
 	}
 }
 
+#endif

@@ -410,9 +410,16 @@ namespace LevelEditorPlugin.Entities
             if (entityTypes.ContainsKey(objectDataType))
             {
                 Type objectType = entityTypes[objectDataType];
-                return (inWorld != null)
-                    ? (Entity)Activator.CreateInstance(objectType, new object[] { objectData, parent, inWorld })
-                    : (Entity)Activator.CreateInstance(objectType, new object[] { objectData, parent });
+                //try
+                //{
+                    return (inWorld != null)
+                        ? (Entity)Activator.CreateInstance(objectType, new object[] { objectData, parent, inWorld })
+                        : (Entity)Activator.CreateInstance(objectType, new object[] { objectData, parent });
+                //}
+                //catch (Exception)
+                //{
+                    //return null;
+                //}
             }
 
             System.Diagnostics.Debug.WriteLine(objectDataType.ToString());

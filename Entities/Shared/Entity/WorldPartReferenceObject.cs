@@ -1,20 +1,65 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO;
+using FrostySdk.Ebx;
+using LevelEditorPlugin.Assets;
+using LevelEditorPlugin.Layers;
+using SharpDX;
 
 namespace LevelEditorPlugin.Entities
 {
-    [EntityBinding(DataType = typeof(FrostySdk.Ebx.WorldPartReferenceObjectData))]
-    public class WorldPartReferenceObject : LayerReferenceObject, IEntityData<FrostySdk.Ebx.WorldPartReferenceObjectData>
+    [EntityBinding(DataType = typeof(WorldPartReferenceObjectData))]
+    public class WorldPartReferenceObject : ReferenceObject, IEntityData<WorldPartReferenceObjectData>, ILayerEntity
     {
-        public new FrostySdk.Ebx.WorldPartReferenceObjectData Data => data as FrostySdk.Ebx.WorldPartReferenceObjectData;
-        public new Assets.WorldPart Blueprint => blueprint as Assets.WorldPart;
-
-        public WorldPartReferenceObject(FrostySdk.Ebx.WorldPartReferenceObjectData inData, Entity inParent)
-            : base(inData, inParent)
+        public new WorldPartReferenceObjectData Data
         {
+            get
+            {
+                GameObjectData obj = data;
+                return (WorldPartReferenceObjectData)(object)((obj is WorldPartReferenceObjectData) ? obj : null);
+            }
+        }
+
+        public new WorldPart Blueprint => blueprint as WorldPart;
+
+        public WorldPartReferenceObject(WorldPartReferenceObjectData inData, Entity inParent)
+            : base((ReferenceObjectData)(object)inData, inParent)
+        {
+        }
+
+        public override void AddEntity(Entity inEntity)
+        {
+            inEntity.SetParent(this);
+            (Blueprint.Data).Objects.Add(new PointerRef(inEntity.GetRawData()));
+        }
+
+        public SceneLayer GetLayer()
+        {
+            //IL_0045: Unknown result type (might be due to invalid IL or missing references)
+            if (blueprint == null)
+            {
+                return null;
+            }
+
+            string layerName = Path.GetFileName(blueprint.Name) ?? "";
+            SceneLayer sceneLayer = new SceneLayer((Entity)this, layerName, (Color4?)new Color4(1f, 0f, 0f, 1f));
+            foreach (Entity entity in entities)
+            {
+                if (entity is ILayerEntity)
+                {
+                    ILayerEntity layerEntity = entity as ILayerEntity;
+                    SceneLayer layer = layerEntity.GetLayer();
+                    if (layer != null)
+                    {
+                        sceneLayer.ChildLayers.Add(layer);
+                    }
+                }
+                else
+                {
+                    sceneLayer.AddEntity(entity);
+                    entity.SetOwner(entity);
+                }
+            }
+
+            return sceneLayer;
         }
     }
 }

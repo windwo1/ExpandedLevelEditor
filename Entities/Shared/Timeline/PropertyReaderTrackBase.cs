@@ -1,4 +1,5 @@
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.PropertyReaderTrackBaseData))]
@@ -14,3 +15,4 @@ namespace LevelEditorPlugin.Entities
 	}
 }
 
+#endif

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Vec2 = FrostySdk.Ebx.Vec2;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.SelectVec2EntityData))]
@@ -71,3 +72,4 @@ namespace LevelEditorPlugin.Entities
 	}
 }
 
+#endif

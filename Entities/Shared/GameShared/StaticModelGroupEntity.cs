@@ -50,7 +50,7 @@ namespace LevelEditorPlugin.Entities
     public class StaticModelGroupElementEntity : Entity, IEntityData<StaticModelGroupElementEntityData>, ISpatialEntity
     {
         public StaticModelGroupElementEntityData Data => data as StaticModelGroupElementEntityData;
-        public override bool RequiresTransformUpdate 
+        public override bool RequiresTransformUpdate
         {
             get => base.RequiresTransformUpdate;
             set
@@ -60,7 +60,7 @@ namespace LevelEditorPlugin.Entities
         }
         public override string DisplayName => Path.GetFileName(blueprint.Name);
 
-        private Assets.ObjectBlueprint blueprint;
+        public Assets.ObjectBlueprint blueprint;
         private Entity entity;
 
         public StaticModelGroupElementEntity(StaticModelGroupElementEntityData inData, Entity inParent)
@@ -179,18 +179,20 @@ namespace LevelEditorPlugin.Entities
 
                             if (entityData.ObjectVariationHash != 0)
                             {
-                                while (!(currentLayer is SubWorldReferenceObject))
+                                while (!(currentLayer is SubWorldReferenceObject) && currentLayer != null)
                                     currentLayer = currentLayer.Parent;
 
-                                MeshVariationDatabase meshVariatationDb = (currentLayer as SubWorldReferenceObject).MeshVariationDatabase;
+                                MeshVariationDatabase meshVariatationDb = (currentLayer as SubWorldReferenceObject)?.MeshVariationDatabase;
                                 if (meshVariatationDb != null)
                                 {
                                     entityData.ObjectVariation = meshVariatationDb.GetVariation(entityData.ObjectVariationHash);
                                 }
                             }
-                            
+
                         }
+#if !GW1
                         if (i < member.InstanceRenderingOverrides.Count) entityData.RenderingOverrides = member.InstanceRenderingOverrides[i];
+#endif
                         if (i < member.InstanceRadiosityTypeOverride.Count) entityData.RadiosityTypeOverride = member.InstanceRadiosityTypeOverride[i];
                         if (i < member.InstanceTerrainShaderNodesEnable.Count) entityData.TerrainShaderNodesEnable = member.InstanceTerrainShaderNodesEnable[i];
 
@@ -345,6 +347,7 @@ namespace LevelEditorPlugin.Entities
                 if (gameObjectData is FrostySdk.Ebx.StaticModelGroupPhysicsComponentData)
                 {
                     FrostySdk.Ebx.StaticModelGroupPhysicsComponentData physicsComponentData = (FrostySdk.Ebx.StaticModelGroupPhysicsComponentData)gameObjectData;
+#if !GW1
                     foreach (PointerRef body in physicsComponentData.PhysicsBodies)
                     {
                         FrostySdk.Ebx.GroupRigidBodyData bodyData = body.GetObjectAs<FrostySdk.Ebx.GroupRigidBodyData>();
@@ -355,6 +358,7 @@ namespace LevelEditorPlugin.Entities
                             return App.AssetManager.GetResAs<Resources.HavokPhysicsData>(App.AssetManager.GetResEntry(havokAsset.Resource));
                         }
                     }
+#endif
                 }
             }
 

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 
+#if false
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.SelectPropertyEntityData))]
@@ -82,3 +83,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

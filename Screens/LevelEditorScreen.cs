@@ -489,7 +489,7 @@ namespace LevelEditorPlugin.Screens
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        FrostyTaskWindow.Show("Preparing scene", "", (task) =>
+                        FrostyTaskWindow.Show("Preparing scene", "This might take some time!", (task) =>
                         {
                             ProcessRenderTasks();
                             ShowTaskWindow = false;
