@@ -305,11 +305,13 @@ namespace LevelEditorPlugin.Editors
             string meshPath = Path.Combine(basePath, "Meshes");
             string terrainPath = Path.Combine(basePath, "TerrainChunks");
             string texturePath = Path.Combine(basePath, "Textures");
+            string lightingPath = Path.Combine(basePath, "Lights");
 
             Directory.CreateDirectory(basePath);
             Directory.CreateDirectory(meshPath);
             Directory.CreateDirectory(terrainPath);
             Directory.CreateDirectory(texturePath);
+            Directory.CreateDirectory(lightingPath);
 
             Dictionary<string, bool> hasExportedMesh = new Dictionary<string, bool>();
 
@@ -331,7 +333,7 @@ namespace LevelEditorPlugin.Editors
                     Indent = true,
                     OmitXmlDeclaration = true,
                 };
-                XmlWriter xmlWriter = XmlWriter.Create(Path.Combine(basePath, rootLayerName) + ".xml", settings);
+                XmlWriter xmlWriter = XmlWriter.Create(Path.Combine(meshPath, rootLayerName) + ".xml", settings);
                 XmlWriter xmlWriterMaterials = XmlWriter.Create(Path.Combine(basePath, "Materials.xml"), settings);
 
                 xmlWriter.WriteStartElement("FrostbiteLevel");
@@ -512,21 +514,30 @@ namespace LevelEditorPlugin.Editors
                     }
                 }
 
-                xmlWriter.WriteEndElement();
-                xmlWriterMaterials.WriteEndElement();
-
-                xmlWriter.Dispose();
-                xmlWriterMaterials.Dispose();
-                #endregion
-
                 List<Entities.Entity> entityList = new List<Entities.Entity>();
 
                 RootLayer.CollectEntities(entityList);
+
                 foreach (Entities.Entity entity in entityList)
                 {
+                    if (entity is PbrSphereLightEntity light)
+                    {
+                        task.Update("Exporting Lights");
+
+                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Parent.FileGuid);
+                        AssetDefinition assetDefinition = App.PluginManager.GetAssetDefinition(entry.Type) ?? new AssetDefinition();
+
+                        string path = Path.Combine(lightingPath, entry.DisplayName);
+
+                        if (!File.Exists(path))
+                        {
+                            assetDefinition.Export(entry, path + ".xml", "xml");
+                        }
+                    }
+
                     if (entity is TerrainEntity)
                     {
-                        task.Update("Exporting Terrain", null);
+                        task.Update("Exporting Terrain");
 
                         TerrainEntity terrainEntity = entity as TerrainEntity;
 
@@ -539,6 +550,13 @@ namespace LevelEditorPlugin.Editors
                         }
                     }
                 }
+
+                xmlWriter.WriteEndElement();
+                xmlWriterMaterials.WriteEndElement();
+
+                xmlWriter.Dispose();
+                xmlWriterMaterials.Dispose();
+                #endregion
 
                 timer.Stop();
 

@@ -55,16 +55,7 @@ namespace LevelEditorPlugin.Render.Proxies
 
             RecalculateBoundingBox();
 
-            ApplyMaterials(state);
-
-            permutation = state.ShaderLibrary.GetFallbackShader();
-            permutation.IsTwoSided = true;
-            permutation.LoadShaders(state.Device);
-            permutation.AssignParameters(state, ref pixelParameters, ref pixelTextures);
-        }
-
-        private void ApplyMaterials(RenderCreateState state)
-        {
+            // materials
             MeshAsset asset = null;
             if (OwnerEntity is MeshProxyEntity meshProxyEntity) asset = meshProxyEntity.Mesh;
             if (OwnerEntity is StaticModelEntity staticModelEntity) asset = staticModelEntity.Mesh;
@@ -77,6 +68,11 @@ namespace LevelEditorPlugin.Render.Proxies
 
                 renderData.SetMaterials(state, new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()));
             }
+
+            permutation = state.ShaderLibrary.GetFallbackShader();
+            permutation.IsTwoSided = true;
+            permutation.LoadShaders(state.Device);
+            permutation.AssignParameters(state, ref pixelParameters, ref pixelTextures);
         }
 
         public ModelRenderProxy(RenderCreateState state, MeshProxyEntity owner)
