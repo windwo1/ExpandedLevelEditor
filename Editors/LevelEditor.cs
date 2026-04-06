@@ -342,6 +342,43 @@ namespace LevelEditorPlugin.Editors
 
                 xmlWriterMaterials.WriteStartElement("Materials");
 
+                List<Entities.Entity> entityList = new List<Entities.Entity>();
+
+                RootLayer.CollectEntities(entityList);
+
+                foreach (Entities.Entity entity in entityList)
+                {
+                    if (entity is PbrSphereLightEntity light)
+                    {
+                        task.Update("Exporting Lights");
+
+                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
+                        AssetDefinition assetDefinition = App.PluginManager.GetAssetDefinition(entry.Type) ?? new AssetDefinition();
+
+                        string path = Path.Combine(lightingPath, entry.DisplayName);
+
+                        if (!File.Exists(path))
+                        {
+                            assetDefinition.Export(entry, path + ".xml", "xml");
+                        }
+                    }
+
+                    if (entity is TerrainEntity)
+                    {
+                        task.Update("Exporting Terrain");
+
+                        TerrainEntity terrainEntity = entity as TerrainEntity;
+
+                        int index = 0;
+
+                        foreach (TerrainChunkRenderable terrainChunk in terrainEntity.Terrain.TerrainData.TerrainChunks)
+                        {
+                            terrainChunk.ExportToOBJ(Path.Combine(terrainPath, $"chunk_{terrainChunk.Level}_{index}.obj"));
+                            index++;
+                        }
+                    }
+                }
+
                 FBXExporter exporter = new FBXExporter(task);
 
                 foreach (SceneLayer item in layers)
@@ -511,43 +548,6 @@ namespace LevelEditorPlugin.Editors
                         xmlWriter.WriteEndElement();
                         xmlWriter.WriteElementString("ObjectCount", instanceCount.ToString());
                         xmlWriter.WriteEndElement();
-                    }
-                }
-
-                List<Entities.Entity> entityList = new List<Entities.Entity>();
-
-                RootLayer.CollectEntities(entityList);
-
-                foreach (Entities.Entity entity in entityList)
-                {
-                    if (entity is PbrSphereLightEntity light)
-                    {
-                        task.Update("Exporting Lights");
-
-                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Parent.FileGuid);
-                        AssetDefinition assetDefinition = App.PluginManager.GetAssetDefinition(entry.Type) ?? new AssetDefinition();
-
-                        string path = Path.Combine(lightingPath, entry.DisplayName);
-
-                        if (!File.Exists(path))
-                        {
-                            assetDefinition.Export(entry, path + ".xml", "xml");
-                        }
-                    }
-
-                    if (entity is TerrainEntity)
-                    {
-                        task.Update("Exporting Terrain");
-
-                        TerrainEntity terrainEntity = entity as TerrainEntity;
-
-                        int index = 0;
-
-                        foreach (TerrainChunkRenderable terrainChunk in terrainEntity.Terrain.TerrainData.TerrainChunks)
-                        {
-                            terrainChunk.ExportToOBJ(Path.Combine(terrainPath, $"chunk_{terrainChunk.Level}_{index}.obj"));
-                            index++;
-                        }
                     }
                 }
 
