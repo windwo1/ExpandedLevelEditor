@@ -162,8 +162,14 @@
     <Reference Include="FrostyCore">
       <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\FrostyCore.dll</HintPath>
     </Reference>
+    <Reference Include="FrostyHash">
+      <HintPath>..\..\FrostyEditor\x64\Release - Final\FrostyHash.dll</HintPath>
+    </Reference>
     <Reference Include="FrostySdk">
       <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\FrostySdk.dll</HintPath>
+    </Reference>
+    <Reference Include="MeshSetPlugin">
+      <HintPath>..\MeshSetPlugin\bin\Release\Final\MeshSetPlugin.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Newtonsoft.Json">
@@ -184,6 +190,9 @@
       <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Mathematics.dll</HintPath>
     </Reference>
     <Reference Include="System.Xaml" />
+    <Reference Include="TexturePlugin">
+      <HintPath>..\TexturePlugin\bin\Release\Final\TexturePlugin.dll</HintPath>
+    </Reference>
     <Reference Include="WindowsBase" />
   </ItemGroup>
 
@@ -297,11 +306,6 @@
     <Page Remove="GameSpecific\starwarsbattlefrontii\**" Condition="'$(Configuration)' != 'Release - Alpha' And '$(Configuration)' != 'Release - Alpha'" />
     <Page Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'Release - Alpha' And '$(Configuration)' != 'Release - Alpha'" />
 	  <Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'Release - Final' And '$(Configuration)' != 'Release - Final'" />
-  </ItemGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\MeshSetPlugin\MeshSetPlugin.csproj" />
-    <ProjectReference Include="..\TexturePlugin\TexturePlugin.csproj" />
   </ItemGroup>
   
 </Project>

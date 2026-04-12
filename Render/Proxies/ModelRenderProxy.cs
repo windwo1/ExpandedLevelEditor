@@ -55,18 +55,40 @@ namespace LevelEditorPlugin.Render.Proxies
 
             RecalculateBoundingBox();
 
+            bool createMaterials = false;
+
             // materials
-            MeshAsset asset = null;
-            if (OwnerEntity is MeshProxyEntity meshProxyEntity) asset = meshProxyEntity.Mesh;
-            if (OwnerEntity is StaticModelEntity staticModelEntity) asset = staticModelEntity.Mesh;
-            if (OwnerEntity is ClothEntity clothEntity) asset = clothEntity.Mesh;
-            if (OwnerEntity is VegetationTreeEntity vegetationTreeEntity) asset = vegetationTreeEntity.Mesh;
-
-            if (asset != null)
+            if (createMaterials)
             {
-                EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(asset.FileGuid));
+                MeshAsset asset = null;
+                if (OwnerEntity is MeshProxyEntity meshProxyEntity) asset = meshProxyEntity.Mesh;
+                if (OwnerEntity is StaticModelEntity staticModelEntity) asset = staticModelEntity.Mesh;
+                if (OwnerEntity is ClothEntity clothEntity) asset = clothEntity.Mesh;
+                if (OwnerEntity is VegetationTreeEntity vegetationTreeEntity) asset = vegetationTreeEntity.Mesh;
 
-                renderData.SetMaterials(state, new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()));
+                if (asset != null)
+                {
+                    EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(asset.FileGuid));
+
+                    renderData.SetMaterials(state, new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()));
+                }
+            }
+            else
+            {
+                material = new MeshMaterial();
+                material.VectorParameters.Add(
+                    new FrostySdk.Ebx.VectorShaderParameter()
+                    {
+                        ParameterName = "Color",
+                        ParameterType = FrostySdk.Ebx.ShaderParameterType.ShaderParameterType_Vec4,
+                        Value = new FrostySdk.Ebx.Vec4()
+                        {
+                            x = OwnerEntity.Owner.Layer.LayerColor.Red,
+                            y = OwnerEntity.Owner.Layer.LayerColor.Green,
+                            z = OwnerEntity.Owner.Layer.LayerColor.Blue,
+                            w = 1.0f
+                        }
+                    });
             }
 
             permutation = state.ShaderLibrary.GetFallbackShader();

@@ -10,9 +10,11 @@ using FrostySdk.IO;
 using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
 using LevelEditorPlugin.Assets;
+using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
+using LevelEditorPlugin.Properties;
 using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Screens;
 using MeshSetPlugin;
@@ -29,6 +31,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Xml;
 using TexturePlugin;
@@ -271,7 +274,7 @@ namespace LevelEditorPlugin.Editors
                 editingWorld = refObj;
                 currentLoadingState = null;
 
-                world.Initialize();
+                //world.Initialize();
             });
 
             timer.Stop();
@@ -327,7 +330,6 @@ namespace LevelEditorPlugin.Editors
                 uint objCount = 0; //ObjectRefs
                 uint spatialCount = 0; //SpatialObjRefs
 
-                task.Update("Writing XML");
                 XmlWriterSettings settings = new XmlWriterSettings
                 {
                     Indent = true,
@@ -342,43 +344,6 @@ namespace LevelEditorPlugin.Editors
 
                 xmlWriterMaterials.WriteStartElement("Materials");
 
-                List<Entities.Entity> entityList = new List<Entities.Entity>();
-
-                RootLayer.CollectEntities(entityList);
-
-                foreach (Entities.Entity entity in entityList)
-                {
-                    if (entity is PbrSphereLightEntity light)
-                    {
-                        task.Update("Exporting Lights");
-
-                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
-                        AssetDefinition assetDefinition = App.PluginManager.GetAssetDefinition(entry.Type) ?? new AssetDefinition();
-
-                        string path = Path.Combine(lightingPath, entry.DisplayName);
-
-                        if (!File.Exists(path))
-                        {
-                            assetDefinition.Export(entry, path + ".xml", "xml");
-                        }
-                    }
-
-                    if (entity is TerrainEntity)
-                    {
-                        task.Update("Exporting Terrain");
-
-                        TerrainEntity terrainEntity = entity as TerrainEntity;
-
-                        int index = 0;
-
-                        foreach (TerrainChunkRenderable terrainChunk in terrainEntity.Terrain.TerrainData.TerrainChunks)
-                        {
-                            terrainChunk.ExportToOBJ(Path.Combine(terrainPath, $"chunk_{terrainChunk.Level}_{index}.obj"));
-                            index++;
-                        }
-                    }
-                }
-
                 FBXExporter exporter = new FBXExporter(task);
 
                 foreach (SceneLayer item in layers)
@@ -391,43 +356,181 @@ namespace LevelEditorPlugin.Editors
                         List<Entities.Entity> entities = new List<Entities.Entity>();
                         item.CollectEntities(entities);
 
-                        xmlWriter.WriteStartElement("StaticModelInstances");
-
-                        int count = 0;
-                        foreach (Entities.Entity entity in entities.Where((Entities.Entity e) => e is StaticModelGroupElementEntity))
+                        try
                         {
-                            xmlWriter.WriteStartElement("StaticModelGroupElementEntity");
+                            ExportObjects(entities.Cast<object>().ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
+                                ref smiCount, ref objCount, ref spatialCount);
+                        }
+                        catch (DirectoryNotFoundException)
+                        {
+                            // file path too long
+                            FrostyMessageBox.Show("File path was too long, try moving Frosty Editor to a shorter location (directly under the C: drive for example)");
+                        }
 
-                            StaticModelGroupElementEntity smi = entity as StaticModelGroupElementEntity;
+                        xmlWriter.WriteEndElement();
+                    }
+                }
 
-                            //Get required assets (Object blueprint, mesh asset)
-                            EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(smi.Data.Blueprint.External.FileGuid);
+                xmlWriter.WriteEndElement();
+                xmlWriterMaterials.WriteEndElement();
 
-                            if (objBlueprint == null)
-                                continue;
+                xmlWriter.Dispose();
+                xmlWriterMaterials.Dispose();
+                #endregion
 
-                            EbxAsset objAsset = App.AssetManager.GetEbx(objBlueprint);
+                List<Entities.Entity> entityList = new List<Entities.Entity>();
 
-                            dynamic objRootAsset = objAsset.RootObject;
+                RootLayer.CollectEntities(entityList);
 
-                            EbxAssetEntry objMeshAsset = App.AssetManager.GetEbxEntry((objRootAsset.Object.Internal).Mesh.External.FileGuid);
+                foreach (Entities.Entity entity in entityList)
+                {
+                    if (entity is PbrSphereLightEntity light)
+                    {
+                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
+
+                        task.Update($"Exporting Lights ({entry.DisplayName})");
+
+                        AssetDefinition assetDefinition = App.PluginManager.GetAssetDefinition(entry.Type) ?? new AssetDefinition();
+
+                        string path = Path.Combine(lightingPath, entry.DisplayName);
+
+                        if (!File.Exists(path))
+                        {
+                            assetDefinition.Export(entry, path + ".xml", "xml");
+                        }
+                    }
+
+                    if (entity is TerrainEntity)
+                    {
+                        TerrainEntity terrainEntity = entity as TerrainEntity;
+
+                        int index = 0;
+
+                        foreach (TerrainChunkRenderable terrainChunk in terrainEntity.Terrain.TerrainData.TerrainChunks)
+                        {
+                            task.Update($"Exporting Terrain ({terrainChunk.Level}_{index})");
+
+                            terrainChunk.ExportToOBJ(Path.Combine(terrainPath, $"chunk_{terrainChunk.Level}_{index}.obj"));
+                            index++;
+                        }
+                    }
+                }
+
+                timer.Stop();
+
+                App.Logger.Log("Exported {0} static models, {1} objects, {2} spatialprefabs in {3}", smiCount, objCount, spatialCount, timer.Elapsed);
+            });
+        }
+
+        private void ExportObjects(List<object> objects, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh, ref uint smiCount, ref uint objCount, ref uint spatialCount, List<string> spatialPaths = null)
+        {
+            string basePath = Path.Combine(Environment.CurrentDirectory, "Levels", RootLayer.LayerName);
+
+            string meshPath = Path.Combine(basePath, "Meshes");
+            string texturePath = Path.Combine(basePath, "Textures");
+
+            xmlWriter.WriteStartElement("StaticModelInstances");
+
+            int count = 0;
+            foreach (object entity in objects.Where(e => e is StaticModelGroupElementEntity || e is StaticModelGroupElementEntityData))
+            {
+                xmlWriter.WriteStartElement("StaticModelGroupElementEntity");
+
+                StaticModelGroupElementEntityData smiData = (entity as StaticModelGroupElementEntity)?.Data ?? entity as StaticModelGroupElementEntityData;
+
+                //Get required assets (Object blueprint, mesh asset)
+                EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(smiData.Blueprint.External.FileGuid);
+
+                if (objBlueprint == null)
+                    continue;
+
+                EbxAsset objAsset = App.AssetManager.GetEbx(objBlueprint);
+
+                dynamic objRootAsset = objAsset.RootObject;
+
+                EbxAssetEntry objMeshAsset = App.AssetManager.GetEbxEntry((objRootAsset.Object.Internal).Mesh.External.FileGuid);
+
+                string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
+
+                EbxAsset meshAssetEbx = App.AssetManager.GetEbx(objMeshAsset);
+                dynamic meshAsset = (dynamic)meshAssetEbx.RootObject;
+
+                if (!hasExportedMesh.TryGetValue(path, out var _))
+                {
+                    if (objMeshAsset == null)
+                        continue;
+
+                    //Update task
+
+                    task.Update("StaticModel " + objMeshAsset.DisplayName);
+
+                    //App.Logger.Log("{0}: {1}", objMeshAsset.DisplayName, smiTransform.ToString());
+
+                    ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
+
+                    exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
+
+                    hasExportedMesh[path] = true;
+                }
+
+                ulong resRid = meshAsset.MeshSetResource;
+                ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
+
+                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
+
+                ExportParameters(objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
+
+                LinearTransform transform = smiData.Transform;
+
+                xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
+                WriteTransformToXML(xmlWriter, transform);
+                xmlWriter.WriteEndElement();
+
+                smiCount++;
+                count++;
+            }
+
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteElementString("StaticInstanceCount", count.ToString());
+            xmlWriter.WriteStartElement("Objects");
+
+            int instanceCount = 0;
+            foreach (object entity in objects.Where(e => e is ObjectReferenceObject || e is ObjectReferenceObjectData))
+            {
+                xmlWriter.WriteStartElement("ObjectInstance");
+                ObjectReferenceObjectData data = (entity as ObjectReferenceObject)?.Data ?? entity as ObjectReferenceObjectData;
+
+                if (data.GetType().Name == "ObjectReferenceObjectData")
+                {
+                    EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
+                    if (objBlueprint != null)
+                    {
+                        EbxAsset objAsset = App.AssetManager.GetEbx(objBlueprint, false);
+                        dynamic objRootAsset = objAsset.RootObject;
+
+                        EbxAssetEntry objMeshAsset;
+
+                        try
+                        {
+                            objMeshAsset = App.AssetManager.GetEbxEntry(objRootAsset.Object.Internal.Mesh.External.FileGuid);
+                        }
+                        catch { continue; }
+
+                        if (objMeshAsset != null)
+                        {
+                            task.Update("Object " + objMeshAsset.DisplayName);
+
+                            LinearTransform blueprintTransform = data.BlueprintTransform;
+                            xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
+                            WriteTransformToXML(xmlWriter, blueprintTransform);
 
                             string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
 
                             EbxAsset meshAssetEbx = App.AssetManager.GetEbx(objMeshAsset);
-                            dynamic meshAsset = (dynamic)meshAssetEbx.RootObject;
+                            dynamic meshAsset = meshAssetEbx.RootObject;
 
                             if (!hasExportedMesh.TryGetValue(path, out var _))
                             {
-                                if (objMeshAsset == null)
-                                    continue;
-
-                                //Update task
-
-                                task.Update("StaticModel " + objMeshAsset.DisplayName);
-
-                                //App.Logger.Log("{0}: {1}", objMeshAsset.DisplayName, smiTransform.ToString());
-
                                 ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
 
                                 exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
@@ -442,126 +545,78 @@ namespace LevelEditorPlugin.Editors
 
                             ExportParameters(objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
 
-                            LinearTransform transform = smi.Data.Transform;
-
-                            xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
-                            WriteTransformToXML(xmlWriter, transform);
                             xmlWriter.WriteEndElement();
-
-                            smiCount++;
-                            count++;
+                            objCount++;
+                            instanceCount++;
                         }
-
-                        xmlWriter.WriteEndElement();
-                        xmlWriter.WriteElementString("StaticInstanceCount", count.ToString());
-                        xmlWriter.WriteStartElement("Objects");
-
-                        int instanceCount = 0;
-                        foreach (Entities.Entity entity in entities.Where((Entities.Entity e) => e is ObjectReferenceObject))
-                        {
-                            xmlWriter.WriteStartElement("ObjectInstance");
-                            ObjectReferenceObject obj = entity as ObjectReferenceObject;
-
-                            if (obj.Data.GetType().Name == "ObjectReferenceObjectData")
-                            {
-                                ObjectReferenceObjectData data = obj.Data;
-
-                                EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
-                                if (objBlueprint != null)
-                                {
-                                    EbxAsset objAsset = App.AssetManager.GetEbx(objBlueprint, false);
-                                    dynamic objRootAsset = objAsset.RootObject;
-
-                                    EbxAssetEntry objMeshAsset;
-
-                                    try
-                                    {
-                                        objMeshAsset = App.AssetManager.GetEbxEntry(objRootAsset.Object.Internal.Mesh.External.FileGuid);
-                                    }
-                                    catch { continue; }
-
-                                    if (objMeshAsset != null)
-                                    {
-                                        task.Update("Object " + objMeshAsset.DisplayName);
-
-                                        LinearTransform blueprintTransform = data.BlueprintTransform;
-                                        xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
-                                        WriteTransformToXML(xmlWriter, blueprintTransform);
-
-                                        string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
-
-                                        EbxAsset meshAssetEbx = App.AssetManager.GetEbx(objMeshAsset);
-                                        dynamic meshAsset = meshAssetEbx.RootObject;
-
-                                        if (!hasExportedMesh.TryGetValue(path, out var _))
-                                        {
-                                            ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
-
-                                            exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
-
-                                            hasExportedMesh[path] = true;
-                                        }
-
-                                        ulong resRid = meshAsset.MeshSetResource;
-                                        ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
-
-                                        var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
-
-                                        ExportParameters(objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
-
-                                        xmlWriter.WriteEndElement();
-                                        objCount++;
-                                        instanceCount++;
-                                    }
-                                }
-                            }
-                        }
-
-                        foreach (Entities.Entity entity in entities.Where((Entities.Entity e) => e is SpatialPrefabReferenceObject))
-                        {
-                            xmlWriter.WriteStartElement("SpatialPrefabInstance");
-
-                            SpatialPrefabReferenceObject spatial = entity as SpatialPrefabReferenceObject;
-                            SpatialPrefabReferenceObjectData data = spatial.Data;
-
-                            EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
-
-                            if (objBlueprint != null)
-                            {
-                                EbxAsset asset = App.AssetManager.GetEbx(objBlueprint);
-                                dynamic rootObject = asset.RootObject;
-
-                                task.Update("SpatialPrefab " + objBlueprint.Name);
-
-                                LinearTransform blueprintTransform = data.BlueprintTransform;
-
-                                xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
-                                WriteTransformToXML(xmlWriter, blueprintTransform);
-                                xmlWriter.WriteEndElement();
-
-                                objCount++;
-                                instanceCount++;
-                                spatialCount++;
-                            }
-                        }
-
-                        xmlWriter.WriteEndElement();
-                        xmlWriter.WriteElementString("ObjectCount", instanceCount.ToString());
-                        xmlWriter.WriteEndElement();
                     }
                 }
+            }
 
-                xmlWriter.WriteEndElement();
-                xmlWriterMaterials.WriteEndElement();
+            foreach (object entity in objects.Where(e => e is SpatialPrefabReferenceObject || e is SpatialPrefabReferenceObjectData))
+            {
+                xmlWriter.WriteStartElement("SpatialPrefabInstance");
+                SpatialPrefabReferenceObjectData data = (entity as SpatialPrefabReferenceObject)?.Data ?? entity as SpatialPrefabReferenceObjectData;
 
-                xmlWriter.Dispose();
-                xmlWriterMaterials.Dispose();
-                #endregion
+                EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
 
-                timer.Stop();
+                if (objBlueprint != null)
+                {
+                    task.Update("SpatialPrefab " + objBlueprint.Name);
 
-                App.Logger.Log("Exported {0} static models, {1} objects, {2} spatialprefabs in {3}", smiCount, objCount, spatialCount, timer.Elapsed);
-            });
+                    LinearTransform blueprintTransform = data.BlueprintTransform;
+
+                    xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
+                    WriteTransformToXML(xmlWriter, blueprintTransform);
+                    xmlWriter.WriteEndElement();
+
+                    string path = Path.Combine(basePath, "SpatialPrefabs", objBlueprint.Filename);
+                    string spatialMeshPath = Path.Combine(path, "Meshes");
+                    string spatialTexturePath = Path.Combine(path, "Textures");
+                    Directory.CreateDirectory(spatialMeshPath);
+                    Directory.CreateDirectory(spatialTexturePath);
+
+                    XmlWriter spatialXmlWriter = XmlWriter.Create(Path.Combine(spatialMeshPath, objBlueprint.Filename) + ".xml", xmlWriter.Settings);
+                    XmlWriter spatialXmlWriterMaterials = XmlWriter.Create(Path.Combine(path, "Materials.xml"), xmlWriter.Settings);
+
+                    EbxAsset spatialAsset = App.AssetManager.GetEbx(objBlueprint);
+                    dynamic spatialRootObject = spatialAsset.RootObject;
+
+                    spatialXmlWriter.WriteStartElement("SpatialPrefab");
+                    spatialXmlWriter.WriteElementString("Name", objBlueprint.Name);
+                    spatialXmlWriterMaterials.WriteStartElement("Materials");
+
+                    List<object> spatialObjects = new List<object>();
+                    foreach (var obj in spatialRootObject.Objects)
+                    {
+                        spatialObjects.Add(obj.Internal);
+                    }
+
+                    spatialPaths?.Add(path);
+
+                    var childPaths = new List<string>();
+
+                    ExportObjects(spatialObjects, spatialXmlWriter, spatialXmlWriterMaterials, task, exporter, hasExportedMesh,
+                        ref smiCount, ref objCount, ref spatialCount, childPaths);
+
+                    if (childPaths.Count > 0)
+                    {
+                        File.WriteAllLines(Path.Combine(path, "SpatialPrefabs.txt"), childPaths);
+                    }
+
+                    spatialXmlWriter.WriteEndElement();
+                    spatialXmlWriterMaterials.WriteEndElement();
+                    spatialXmlWriter.Dispose();
+                    spatialXmlWriterMaterials.Dispose();
+
+                    objCount++;
+                    instanceCount++;
+                    spatialCount++;
+                }
+            }
+
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteElementString("ObjectCount", instanceCount.ToString());
         }
 
         private void WriteTransformToXML(XmlWriter xmlWriter, LinearTransform smiTransform)
