@@ -147,58 +147,35 @@
 	</Target>
 
   <ItemGroup>
-    <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Alpha' Or '$(Configuration)' == 'Release - Alpha'">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\Profiles\StarWarsIISDK.dll</HintPath>
-    </Reference>
-    <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Alpha' Or '$(Configuration)' == 'Release - Alpha'">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\Profiles\MassEffectSDK.dll</HintPath>
-    </Reference>
-    <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Final' Or '$(Configuration)' == 'Release - Final'">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\Profiles\PVZ2SDK.dll</HintPath>
-    </Reference>
-    <Reference Include="FrostyControls">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\FrostyControls.dll</HintPath>
-    </Reference>
-    <Reference Include="FrostyCore">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\FrostyCore.dll</HintPath>
-    </Reference>
-    <Reference Include="FrostyHash">
-      <HintPath>..\..\FrostyEditor\x64\Release - Final\FrostyHash.dll</HintPath>
-    </Reference>
-    <Reference Include="FrostySdk">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\FrostySdk.dll</HintPath>
-    </Reference>
-    <Reference Include="MeshSetPlugin">
-      <HintPath>..\MeshSetPlugin\bin\Release\Final\MeshSetPlugin.dll</HintPath>
+	<Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Alpha' Or '$(Configuration)' == 'Release - Alpha'">
+	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\StarWarsIISDK.dll</HintPath>
+	</Reference>
+	<Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Alpha' Or '$(Configuration)' == 'Release - Alpha'">
+	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\MassEffectSDK.dll</HintPath>
+	</Reference>
+	<Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Final' Or '$(Configuration)' == 'Release - Final'">
+	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\PVZ2SDK.dll</HintPath>
+	</Reference>
+	<Reference Include="EbxClasses">
     </Reference>
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\Newtonsoft.Json.dll</HintPath>
-    </Reference>
+	<Reference Include="Newtonsoft.Json">
+	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Newtonsoft.Json.dll</HintPath>
+	</Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="SharpDX">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.dll</HintPath>
+      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.dll</HintPath>
     </Reference>
     <Reference Include="SharpDX.Direct3D11">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
+      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
     </Reference>
     <Reference Include="SharpDX.DXGI">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.DXGI.dll</HintPath>
+      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.DXGI.dll</HintPath>
     </Reference>
     <Reference Include="SharpDX.Mathematics">
-      <HintPath>D:\Documents\VisualStudioProjects\FrostyToolsuite-1.0.7_HarGabt\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Mathematics.dll</HintPath>
+      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Mathematics.dll</HintPath>
     </Reference>
-    <Reference Include="System.Xaml" />
-    <Reference Include="TexturePlugin">
-      <HintPath>..\TexturePlugin\bin\Release\Final\TexturePlugin.dll</HintPath>
-    </Reference>
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
     <Reference Include="System.Xaml" />
     <Reference Include="WindowsBase" />
   </ItemGroup>
@@ -305,7 +282,16 @@
   <ItemGroup>
     <Page Remove="GameSpecific\starwarsbattlefrontii\**" Condition="'$(Configuration)' != 'Release - Alpha' And '$(Configuration)' != 'Release - Alpha'" />
     <Page Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'Release - Alpha' And '$(Configuration)' != 'Release - Alpha'" />
-	  <Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'Release - Final' And '$(Configuration)' != 'Release - Final'" />
+	<Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'Release - Final' And '$(Configuration)' != 'Release - Final'" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+    <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj" />
+    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
+    <ProjectReference Include="..\MeshSetPlugin\MeshSetPlugin.csproj" />
+    <ProjectReference Include="..\TexturePlugin\TexturePlugin.csproj" />
   </ItemGroup>
   
 </Project>
