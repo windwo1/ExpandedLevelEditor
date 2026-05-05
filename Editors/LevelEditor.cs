@@ -33,6 +33,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Xaml;
 using System.Xml;
 using TexturePlugin;
 using static System.Net.Mime.MediaTypeNames;
@@ -365,6 +366,7 @@ namespace LevelEditorPlugin.Editors
                         {
                             // file path too long
                             FrostyMessageBox.Show("File path was too long, try moving Frosty Editor to a shorter location (directly under the C: drive for example)");
+                            System.Windows.Application.Current.Shutdown();
                         }
 
                         xmlWriter.WriteEndElement();
@@ -394,7 +396,7 @@ namespace LevelEditorPlugin.Editors
 
                         string path = Path.Combine(lightingPath, entry.DisplayName);
 
-                        if (!File.Exists(path))
+                        if (!File.Exists(path + ".xml"))
                         {
                             assetDefinition.Export(entry, path + ".xml", "xml");
                         }
@@ -422,6 +424,8 @@ namespace LevelEditorPlugin.Editors
             });
         }
 
+        // this is a seperate method because it was gonna recursively export spatial prefabs but it got messy
+        // if anyone else wants to try that i have left it like this so it's easier
         private void ExportObjects(List<object> objects, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh, ref uint smiCount, ref uint objCount, ref uint spatialCount, List<string> spatialPaths = null)
         {
             string basePath = Path.Combine(Environment.CurrentDirectory, "Levels", RootLayer.LayerName);
@@ -453,7 +457,7 @@ namespace LevelEditorPlugin.Editors
                 string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
 
                 EbxAsset meshAssetEbx = App.AssetManager.GetEbx(objMeshAsset);
-                dynamic meshAsset = (dynamic)meshAssetEbx.RootObject;
+                dynamic meshAsset = meshAssetEbx.RootObject;
 
                 if (!hasExportedMesh.TryGetValue(path, out var _))
                 {
@@ -470,15 +474,20 @@ namespace LevelEditorPlugin.Editors
 
                     exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
 
+                    MeshMaterialCollection materials = new MeshMaterialCollection(
+                        App.AssetManager.GetEbx(objMeshAsset),
+                        new PointerRef()
+                    );
+
+                    ulong resRid = meshAsset.MeshSetResource;
+                    ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
+
+                    var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
+                    ExportParameters(materials, objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
+                    WriteSectionsToXML(materials, xmlWriter, objMeshAsset, meshSet);
+
                     hasExportedMesh[path] = true;
                 }
-
-                ulong resRid = meshAsset.MeshSetResource;
-                ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
-
-                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
-
-                ExportParameters(objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
 
                 LinearTransform transform = smiData.Transform;
 
@@ -535,15 +544,20 @@ namespace LevelEditorPlugin.Editors
 
                                 exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
 
+                                MeshMaterialCollection materials = new MeshMaterialCollection(
+                                    App.AssetManager.GetEbx(objMeshAsset),
+                                    new PointerRef()
+                                );
+
+                                ulong resRid = meshAsset.MeshSetResource;
+                                ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
+
+                                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
+                                ExportParameters(materials, objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
+                                WriteSectionsToXML(materials, xmlWriter, objMeshAsset, meshSet);
+
                                 hasExportedMesh[path] = true;
                             }
-
-                            ulong resRid = meshAsset.MeshSetResource;
-                            ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
-
-                            var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
-
-                            ExportParameters(objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
 
                             xmlWriter.WriteEndElement();
                             objCount++;
@@ -562,6 +576,9 @@ namespace LevelEditorPlugin.Editors
 
                 if (objBlueprint != null)
                 {
+                    EbxAsset asset = App.AssetManager.GetEbx(objBlueprint);
+                    dynamic rootObject = asset.RootObject;
+
                     task.Update("SpatialPrefab " + objBlueprint.Name);
 
                     LinearTransform blueprintTransform = data.BlueprintTransform;
@@ -569,45 +586,6 @@ namespace LevelEditorPlugin.Editors
                     xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
                     WriteTransformToXML(xmlWriter, blueprintTransform);
                     xmlWriter.WriteEndElement();
-
-                    string path = Path.Combine(basePath, "SpatialPrefabs", objBlueprint.Filename);
-                    string spatialMeshPath = Path.Combine(path, "Meshes");
-                    string spatialTexturePath = Path.Combine(path, "Textures");
-                    Directory.CreateDirectory(spatialMeshPath);
-                    Directory.CreateDirectory(spatialTexturePath);
-
-                    XmlWriter spatialXmlWriter = XmlWriter.Create(Path.Combine(spatialMeshPath, objBlueprint.Filename) + ".xml", xmlWriter.Settings);
-                    XmlWriter spatialXmlWriterMaterials = XmlWriter.Create(Path.Combine(path, "Materials.xml"), xmlWriter.Settings);
-
-                    EbxAsset spatialAsset = App.AssetManager.GetEbx(objBlueprint);
-                    dynamic spatialRootObject = spatialAsset.RootObject;
-
-                    spatialXmlWriter.WriteStartElement("SpatialPrefab");
-                    spatialXmlWriter.WriteElementString("Name", objBlueprint.Name);
-                    spatialXmlWriterMaterials.WriteStartElement("Materials");
-
-                    List<object> spatialObjects = new List<object>();
-                    foreach (var obj in spatialRootObject.Objects)
-                    {
-                        spatialObjects.Add(obj.Internal);
-                    }
-
-                    spatialPaths?.Add(path);
-
-                    var childPaths = new List<string>();
-
-                    ExportObjects(spatialObjects, spatialXmlWriter, spatialXmlWriterMaterials, task, exporter, hasExportedMesh,
-                        ref smiCount, ref objCount, ref spatialCount, childPaths);
-
-                    if (childPaths.Count > 0)
-                    {
-                        File.WriteAllLines(Path.Combine(path, "SpatialPrefabs.txt"), childPaths);
-                    }
-
-                    spatialXmlWriter.WriteEndElement();
-                    spatialXmlWriterMaterials.WriteEndElement();
-                    spatialXmlWriter.Dispose();
-                    spatialXmlWriterMaterials.Dispose();
 
                     objCount++;
                     instanceCount++;
@@ -658,17 +636,30 @@ namespace LevelEditorPlugin.Editors
             xmlWriter.WriteEndElement();
         }
 
+        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry objMeshAsset, MeshSetPlugin.Resources.MeshSet meshSet)
+        {
+            xmlWriter.WriteStartElement("Sections");
+
+            for (int i = 0; i < materials.Count; i++)
+            {
+                xmlWriter.WriteStartElement("Section");
+                var material = materials[i];
+                var section = meshSet.Lods[0].Sections[i];
+
+                xmlWriter.WriteElementString("Name", section.Name);
+
+                xmlWriter.WriteEndElement(); // Section
+            }
+
+            xmlWriter.WriteEndElement(); // Sections
+        }
+
         private TextureExporter textureExporter = new TextureExporter();
 
-        private void ExportParameters(EbxAssetEntry meshAssetEbx, string path, MeshSetPlugin.Resources.MeshSet meshSet, XmlWriter xmlWriter)
+        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, string path, MeshSetPlugin.Resources.MeshSet meshSet, XmlWriter xmlWriter)
         {
             try
             {
-                MeshMaterialCollection materials = new MeshMaterialCollection(
-                    App.AssetManager.GetEbx(meshAssetEbx),
-                    new PointerRef()
-                    );
-
                 xmlWriter.WriteStartElement("Material");
                 xmlWriter.WriteElementString("Name", meshAssetEbx.Name);
 
