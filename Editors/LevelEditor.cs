@@ -285,7 +285,7 @@ namespace LevelEditorPlugin.Editors
                 logger.LogWarning("Failed to create {0} assets, their AssetData was null! This shouldn't affect anything too much.", LoadedAssetManager.FailedAssets);
             }
             
-            logger.Log($"Level loaded in {timer.Elapsed.ToString()}");
+            logger.Log($"Level loaded in {timer.Elapsed}");
 
             DockManager.AddItemOnLoad(new LayersViewModel(this));
             DockManager.AddItemOnLoad(new InstancesViewModel(this, null));
@@ -636,17 +636,19 @@ namespace LevelEditorPlugin.Editors
             xmlWriter.WriteEndElement();
         }
 
-        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry objMeshAsset, MeshSetPlugin.Resources.MeshSet meshSet)
+        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, MeshSetPlugin.Resources.MeshSet meshSet)
         {
             xmlWriter.WriteStartElement("Sections");
 
-            for (int i = 0; i < materials.Count; i++)
+            var sections = meshSet.Lods[0].Sections.ToList();
+
+            for (int i = 0; i < Math.Min(materials.Count, sections.Count); i++)
             {
                 xmlWriter.WriteStartElement("Section");
-                var material = materials[i];
-                var section = meshSet.Lods[0].Sections[i];
+                var section = sections[i];
 
-                xmlWriter.WriteElementString("Name", section.Name);
+                string materialName = section.Name.StartsWith("lambert") ? $"{meshAssetEbx.DisplayName}[{i}]" : section.Name;
+                xmlWriter.WriteElementString("Name", materialName);
 
                 xmlWriter.WriteEndElement(); // Section
             }
@@ -663,13 +665,19 @@ namespace LevelEditorPlugin.Editors
                 xmlWriter.WriteStartElement("Material");
                 xmlWriter.WriteElementString("Name", meshAssetEbx.Name);
 
-                for (int i = 0; i < materials.Count; i++)
+                var sections = meshSet.Lods[0].Sections.ToList();
+
+                for (int i = 0; i < Math.Min(materials.Count, sections.Count); i++)
                 {
                     var material = materials[i];
-                    var section = meshSet.Lods[0].Sections[i];
+                    var section = sections[i];
+
+                    // 'lambert' is used in a lot of material names, so when importing to blender it can mix up the materials
+                    // so the mesh name is used instead
+                    string materialName = section.Name.StartsWith("lambert") ? $"{meshAssetEbx.DisplayName}[{i}]" : section.Name;
 
                     xmlWriter.WriteStartElement("Material");
-                    xmlWriter.WriteElementString("Name", section.Name);
+                    xmlWriter.WriteElementString("Name", materialName);
 
                     xmlWriter.WriteStartElement("VectorParameters");
 
@@ -731,7 +739,7 @@ namespace LevelEditorPlugin.Editors
             }
             catch (Exception ex)
             {
-                App.Logger.LogError("Failed to get a texture or vector paramater. Failed Asset: " + meshAssetEbx.Name + ". Exception: " + ex.Message.ToString());
+                App.Logger.LogError($"Failed to get a texture or vector paramater. Failed Asset: {meshAssetEbx.Name}. Exception: {ex.Message}");
             }
         }
 
