@@ -483,8 +483,8 @@ namespace LevelEditorPlugin.Editors
                     ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
 
                     var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
-                    ExportParameters(materials, objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
-                    WriteSectionsToXML(materials, xmlWriter, objMeshAsset, meshSet);
+                    ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
+                    WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
 
                     hasExportedMesh[path] = true;
                 }
@@ -553,8 +553,8 @@ namespace LevelEditorPlugin.Editors
                                 ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
 
                                 var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
-                                ExportParameters(materials, objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
-                                WriteSectionsToXML(materials, xmlWriter, objMeshAsset, meshSet);
+                                ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
+                                WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
 
                                 hasExportedMesh[path] = true;
                             }
@@ -636,7 +636,7 @@ namespace LevelEditorPlugin.Editors
             xmlWriter.WriteEndElement();
         }
 
-        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, MeshSetPlugin.Resources.MeshSet meshSet)
+        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, MeshSetPlugin.Resources.MeshSet meshSet)
         {
             xmlWriter.WriteStartElement("Sections");
 
@@ -647,7 +647,7 @@ namespace LevelEditorPlugin.Editors
                 xmlWriter.WriteStartElement("Section");
                 var section = sections[i];
 
-                string materialName = section.Name.StartsWith("lambert") ? $"{meshAssetEbx.DisplayName}[{i}]" : section.Name;
+                string materialName = section.Name.Contains("lambert") ? $"{objBlueprint.DisplayName}:{i}" : section.Name;
                 xmlWriter.WriteElementString("Name", materialName);
 
                 xmlWriter.WriteEndElement(); // Section
@@ -658,7 +658,7 @@ namespace LevelEditorPlugin.Editors
 
         private TextureExporter textureExporter = new TextureExporter();
 
-        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, string path, MeshSetPlugin.Resources.MeshSet meshSet, XmlWriter xmlWriter)
+        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, string path, MeshSetPlugin.Resources.MeshSet meshSet, XmlWriter xmlWriter)
         {
             try
             {
@@ -674,7 +674,7 @@ namespace LevelEditorPlugin.Editors
 
                     // 'lambert' is used in a lot of material names, so when importing to blender it can mix up the materials
                     // so the mesh name is used instead
-                    string materialName = section.Name.StartsWith("lambert") ? $"{meshAssetEbx.DisplayName}[{i}]" : section.Name;
+                    string materialName = section.Name.Contains("lambert") ? $"{objBlueprint.DisplayName}:{i}" : section.Name;
 
                     xmlWriter.WriteStartElement("Material");
                     xmlWriter.WriteElementString("Name", materialName);
