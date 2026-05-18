@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using LinearTransform = FrostySdk.Ebx.LinearTransform;
 
-#if false
+#if !GW2
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.SelectTransformEntityData))]

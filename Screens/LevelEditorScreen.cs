@@ -414,6 +414,14 @@ namespace LevelEditorPlugin.Screens
             });
         }
 
+        public void RemoveEntity(Entity entity)
+        {
+            renderTasks.Enqueue((RenderCreateState state) =>
+            {
+                proxies.RemoveAll(proxy => proxy.OwnerEntity == entity);
+            });
+        }
+
         public override void Update(double timestep)
         {
             base.Update(timestep);

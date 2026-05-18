@@ -1,18 +1,32 @@
-﻿using Frosty.Core;
+﻿using Frosty.Controls;
+using Frosty.Core;
 using Frosty.Core.Controls;
+using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
+using FrostySdk;
+using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
+using FrostySdk.IO;
+using FrostySdk.Managers.Entries;
+using FrostySdk.Resources;
+using LevelEditorPlugin.Data;
+using LevelEditorPlugin.Entities;
+using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
+using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Screens;
+using MeshSetPlugin;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using LevelEditorPlugin.Entities;
+using System.Xml;
+using TexturePlugin;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -86,7 +100,8 @@ namespace LevelEditorPlugin.Editors
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
                 new DividerToolbarItem(),
                 new RegularToolbarItem("", "Capture thumbnail preview", "LevelEditorPlugin/Images/CaptureThumbnail.png", new RelayCommand((o) => { CaptureThumbnail(viewport); })),
-                new ToggleToolbarItem("", "Show/Hide thumbnail safezone", "LevelEditorPlugin/Images/ThumbnailSafezone.png", false, new RelayCommand((o) => { ShowThumbnailSafeZone(thumbnailBorder.Visibility == Visibility.Collapsed, viewport); }))
+                new ToggleToolbarItem("", "Show/Hide thumbnail safezone", "LevelEditorPlugin/Images/ThumbnailSafezone.png", false, new RelayCommand((o) => { ShowThumbnailSafeZone(thumbnailBorder.Visibility == Visibility.Collapsed, viewport); })),
+                new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => { ExportLevel(); }))
             };
         }
 
@@ -118,6 +133,12 @@ namespace LevelEditorPlugin.Editors
                     Task = task,
                     Logger = logger
                 };
+
+                if (!MeshVariationDb.IsLoaded)
+                {
+                    MeshVariationDb.LoadVariations(task);
+                }
+                MeshVariationDb.LoadModifiedVariations();
 
                 FrostySdk.Ebx.SpatialPrefabReferenceObjectData objectData = new FrostySdk.Ebx.SpatialPrefabReferenceObjectData()
                 {

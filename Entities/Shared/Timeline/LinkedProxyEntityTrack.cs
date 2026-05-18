@@ -1,5 +1,5 @@
 
-#if false
+#if !GW2
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.LinkedProxyEntityTrackData))]

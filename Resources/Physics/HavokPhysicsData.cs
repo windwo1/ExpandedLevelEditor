@@ -13,6 +13,7 @@ using Frosty.Core.Mod;
 using Frosty.Core.IO;
 using FrostySdk.Managers.Entries;
 using LevelEditorPlugin.Resources.Hkx;
+using Frosty.Core;
 
 namespace LevelEditorPlugin.Resources
 {
@@ -1093,7 +1094,11 @@ namespace LevelEditorPlugin.Resources
         public string GetPhysicsShapeType(int index)
         {
             hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[index];
-            return instance.shape.GetType().Name;
+
+            // for some reason instance.shape when loading Zomburbia is null, so it just uses a random name
+            string shapeName = instance.shape == null ? "hknpConvexPolytopeShape" : instance.shape.GetType().Name;
+
+            return shapeName;
         }
 
         public override ModifiedResource SaveModifiedResource()

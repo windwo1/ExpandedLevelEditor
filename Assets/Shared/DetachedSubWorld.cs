@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-#if false
+#if !GW2
 namespace LevelEditorPlugin.Assets
 {
     [AssetBinding(DataType = typeof(FrostySdk.Ebx.DetachedSubWorldData))]

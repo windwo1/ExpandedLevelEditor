@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
-    <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
+    <Configurations>MassEffect - Debug;MassEffect - Release;SWBF2 - Debug;SWBF2 - Release;GW2 - Debug;GW2 - Release</Configurations>
     <Platforms>x64</Platforms>
     <TargetFrameworks>net48</TargetFrameworks>
     <AssemblyTitle>LevelEditorPlugin</AssemblyTitle>
@@ -13,7 +13,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Alpha|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MassEffect - Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Developer\Debug\</OutputPath>
     <DefineConstants>TRACE;DEBUG;MASS_EFFECT</DefineConstants>
@@ -31,43 +31,43 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Alpha|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MassEffect - Release|x64'">
     <OutputPath>bin\Release\Final\</OutputPath>
     <DefineConstants>TRACE;MASS_EFFECT</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Alpha|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='SWBF2 - Release|x64'">
     <OutputPath>bin\Release\Final\</OutputPath>
     <DefineConstants>TRACE;SWBF2</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
   
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Final|x64' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'GW2 - Debug|x64' ">
     <DefineConstants>TRACE;DEBUG;GW2</DefineConstants>
   </PropertyGroup>
   
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Final|x64' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'GW2 - Release|x64' ">
     <DefineConstants>TRACE;GW2</DefineConstants>
   </PropertyGroup>
   
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Alpha|x64' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'SWBF2 - Debug|x64' ">
     <DefineConstants>TRACE;DEBUG;SWBF2</DefineConstants>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release - Alpha|net48|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='MassEffect - Debug|net48|x64'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release - Alpha|net48|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='MassEffect - Release|net48|x64'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release - Alpha|net48|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='SWBF2 - Release|net48|x64'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release - Alpha|net48|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='SWBF2 - Debug|net48|x64'">
     <OutputPath>bin\Developer\Debug\</OutputPath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>TRACE;SWBF2</DefineConstants>
@@ -142,40 +142,47 @@
     <None Remove="Images\XMLFile.png" />
   </ItemGroup>
 
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)$(OutDir)Plugins\&quot;" />
-	</Target>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)bin\Release\Final\Plugins\LevelEditorPlugin.dll&quot;" />
+  </Target>
 
   <ItemGroup>
-	<Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Alpha' Or '$(Configuration)' == 'Release - Alpha'">
-	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\StarWarsIISDK.dll</HintPath>
-	</Reference>
-	<Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Alpha' Or '$(Configuration)' == 'Release - Alpha'">
-	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\MassEffectSDK.dll</HintPath>
-	</Reference>
-	<Reference Include="EbxClasses" Condition="'$(Configuration)' == 'Release - Final' Or '$(Configuration)' == 'Release - Final'">
-	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\PVZ2SDK.dll</HintPath>
-	</Reference>
-	<Reference Include="EbxClasses">
-    </Reference>
-    <Reference Include="Microsoft.CSharp" />
-	<Reference Include="Newtonsoft.Json">
-	  <HintPath>..\..\FrostyEditor\bin\Release\Final\Newtonsoft.Json.dll</HintPath>
-	</Reference>
+      <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'SWBF2 - Debug' Or '$(Configuration)' == 'SWBF2 - Release'">
+        <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\StarWarsIISDK.dll</HintPath>
+      </Reference>
+      <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'MassEffect - Debug' Or '$(Configuration)' == 'MassEffect - Release'">
+        <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\MassEffectSDK.dll</HintPath>
+      </Reference>
+      <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'GW2 - Debug' Or '$(Configuration)' == 'GW2 - Release'">
+        <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\PVZ2SDK.dll</HintPath>
+      </Reference>
+      <Reference Include="EbxClasses">
+      </Reference>
+      <Reference Include="Microsoft.CSharp" />
+      <Reference Include="Newtonsoft.Json">
+          <HintPath>..\..\FrostyEditor\bin\Release\Final\Newtonsoft.Json.dll</HintPath>
+      </Reference>
+      <Reference Include="PresentationCore" />
+      <Reference Include="PresentationFramework" />
+      <Reference Include="SharpDX">
+          <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.dll</HintPath>
+      </Reference>
+      <Reference Include="SharpDX.Direct3D11">
+          <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
+      </Reference>
+      <Reference Include="SharpDX.DXGI">
+          <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.DXGI.dll</HintPath>
+      </Reference>
+      <Reference Include="SharpDX.Mathematics">
+          <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Mathematics.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Xaml" />
+      <Reference Include="WindowsBase" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="SharpDX">
-      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.Direct3D11">
-      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.DXGI">
-      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.DXGI.dll</HintPath>
-    </Reference>
-    <Reference Include="SharpDX.Mathematics">
-      <HintPath>..\..\FrostyEditor\bin\Release\Final\ThirdParty\SharpDX.Mathematics.dll</HintPath>
-    </Reference>
     <Reference Include="System.Xaml" />
     <Reference Include="WindowsBase" />
   </ItemGroup>
@@ -259,6 +266,8 @@
     <Compile Remove="GameSpecific\starwarsbattlefrontii\**" Condition="'$(Configuration)' != 'SWBF2 - Debug' And '$(Configuration)' != 'SWBF2 - Release'" />
     
     <Compile Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'MassEffect - Debug' And '$(Configuration)' != 'MassEffect - Release'" />
+
+    <Compile Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'GW2 - Debug' And '$(Configuration)' != 'GW2 - Release'" />
   </ItemGroup>
 
   <ItemGroup>
@@ -280,18 +289,18 @@
   </ItemGroup>
   
   <ItemGroup>
-    <Page Remove="GameSpecific\starwarsbattlefrontii\**" Condition="'$(Configuration)' != 'Release - Alpha' And '$(Configuration)' != 'Release - Alpha'" />
-    <Page Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'Release - Alpha' And '$(Configuration)' != 'Release - Alpha'" />
-	<Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'Release - Final' And '$(Configuration)' != 'Release - Final'" />
+    <Page Remove="GameSpecific\starwarsbattlefrontii\**" Condition="'$(Configuration)' != 'SWBF2 - Debug' And '$(Configuration)' != 'SWBF2 - Release'" />
+    <Page Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'MassEffect - Debug' And '$(Configuration)' != 'MassEffect - Release'" />
+      <Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'MassEffect - Debug' And '$(Configuration)' != 'MassEffect - Release'" />
   </ItemGroup>
-  
+
   <ItemGroup>
-    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
-    <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj" />
-    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
-    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
-    <ProjectReference Include="..\MeshSetPlugin\MeshSetPlugin.csproj" />
-    <ProjectReference Include="..\TexturePlugin\TexturePlugin.csproj" />
+      <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+      <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj" />
+      <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+      <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
+      <ProjectReference Include="..\MeshSetPlugin\MeshSetPlugin.csproj" />
+      <ProjectReference Include="..\TexturePlugin\TexturePlugin.csproj" />
   </ItemGroup>
   
 </Project>

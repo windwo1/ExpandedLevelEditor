@@ -2,7 +2,7 @@ using FrostySdk;
 using System;
 using System.Collections.Generic;
 
-#if false
+#if !GW2
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.SetEnumEntityData))]

@@ -489,10 +489,10 @@ namespace LevelEditorPlugin.Entities
         public override void SetDefaultValues()
         {
             base.SetDefaultValues();
-#if false
+#if !GW2
             Data.LightmapScaleWithSize = true;
 #endif
-#if false
+#if !GW2
             Data.OverrideSpawningRadius = -1;
 #endif
         }

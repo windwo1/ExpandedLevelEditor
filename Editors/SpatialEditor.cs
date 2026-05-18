@@ -1,27 +1,40 @@
-﻿using Frosty.Core;
+﻿using Frosty.Controls;
+using Frosty.Core;
 using Frosty.Core.Controls;
+using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
+using FrostySdk;
+using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
+using FrostySdk.IO;
+using FrostySdk.Managers.Entries;
+using FrostySdk.Resources;
 using LevelEditorPlugin.Controls;
+using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
+using LevelEditorPlugin.Layers;
+using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Screens;
+using MeshSetPlugin;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Shapes;
-using LevelEditorPlugin.Layers;
+using System.Xml;
+using TexturePlugin;
 
 namespace LevelEditorPlugin.Editors
 {
     public interface IEditorProvider
     {
         LevelEditorScreen Screen { get; }
-        Layers.SceneLayer RootLayer { get; }
+        SceneLayer RootLayer { get; }
 
         void SelectLayer(Layers.SceneLayer newSelection);
         void SelectEntity(Entities.Entity newSelection);
@@ -36,7 +49,7 @@ namespace LevelEditorPlugin.Editors
         EntityWorld World { get; }
     }
 
-    [TemplatePart(Name = "PART_ThumbnailBorder", Type = typeof(Rectangle))]
+    [TemplatePart(Name = "PART_ThumbnailBorder", Type = typeof(System.Windows.Shapes.Rectangle))]
     public class SpatialEditor : ToolbarAssetEditor, IEditorProvider
     {
         protected class LoadingStateInfo
@@ -46,23 +59,23 @@ namespace LevelEditorPlugin.Editors
         }
         protected static LoadingStateInfo currentLoadingState;
 
-        public Layers.SceneLayer RootLayer => rootLayer;
-        public Layers.SceneLayer SelectedLayer => selectedLayer;
+        public SceneLayer RootLayer => rootLayer;
+        public SceneLayer SelectedLayer => selectedLayer;
         public LevelEditorScreen Screen => screen;
-        public Controls.DockManager DockManager => dockManager;
+        public DockManager DockManager => dockManager;
 
         protected LevelEditorScreen screen;
 
         protected ReferenceObject editingWorld;
-        protected Layers.SceneLayer rootLayer;
+        protected SceneLayer rootLayer;
         protected EntityWorld world;
 
-        protected Entity selectedEntity;
-        protected Layers.SceneLayer selectedLayer;
+        protected Entities.Entity selectedEntity;
+        protected SceneLayer selectedLayer;
 
-        protected Controls.DockManager dockManager;
+        protected DockManager dockManager;
 
-        protected Rectangle thumbnailBorder;
+        protected System.Windows.Shapes.Rectangle thumbnailBorder;
 
         public event EventHandler<SelectedEntityChangedEventArgs> SelectedEntityChanged;
         public event EventHandler<SelectedLayerChangedEventArgs> SelectedLayerChanged;
@@ -75,7 +88,7 @@ namespace LevelEditorPlugin.Editors
         public SpatialEditor(ILogger inLogger)
             : base(inLogger)
         {
-            dockManager = new Controls.DockManager(this);
+            dockManager = new DockManager(this);
         }
 
         public void SelectEntity(Entities.Entity newSelection)
@@ -83,7 +96,7 @@ namespace LevelEditorPlugin.Editors
             if (newSelection != selectedEntity)
             {
                 // Select the root world if nothing else is selected
-                Entity tmpSelection = newSelection;
+                Entities.Entity tmpSelection = newSelection;
                 if (tmpSelection == null)
                     tmpSelection = editingWorld;
 
@@ -99,7 +112,7 @@ namespace LevelEditorPlugin.Editors
             screen.CenterOnSelection();
         }
 
-        public void SelectLayer(Layers.SceneLayer newSelection)
+        public void SelectLayer(SceneLayer newSelection)
         {
             if (newSelection != selectedLayer)
             {
@@ -113,7 +126,7 @@ namespace LevelEditorPlugin.Editors
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
-            thumbnailBorder = GetTemplateChild("PART_ThumbnailBorder") as Rectangle;
+            thumbnailBorder = GetTemplateChild("PART_ThumbnailBorder") as System.Windows.Shapes.Rectangle;
             PerformTemplateMagic();
         }
 
@@ -137,18 +150,18 @@ namespace LevelEditorPlugin.Editors
         }
 
         // @temp
-        protected Layers.SceneLayer MakeFakeLayer()
+        protected SceneLayer MakeFakeLayer()
         {
-            string layerName = System.IO.Path.GetFileName(editingWorld.Blueprint.Name);
-            Layers.SceneLayer layer = new Layers.SceneLayer(editingWorld, layerName, new SharpDX.Color(0.0f, 0.5f, 0.0f, 1.0f));
+            string layerName = Path.GetFileName(editingWorld.Blueprint.Name);
+            SceneLayer layer = new SceneLayer(editingWorld, layerName, new SharpDX.Color(0.0f, 0.5f, 0.0f, 1.0f));
 
-            List<Entity> entities = (List<Entity>)editingWorld.GetType().GetField("entities", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(editingWorld);
-            foreach (Entity entity in entities)
+            List<Entities.Entity> entities = (List<Entities.Entity>)editingWorld.GetType().GetField("entities", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(editingWorld);
+            foreach (Entities.Entity entity in entities)
             {
                 if (entity is ILayerEntity)
                 {
                     ILayerEntity entityLayer = entity as ILayerEntity;
-                    Layers.SceneLayer childLayer = entityLayer.GetLayer();
+                    SceneLayer childLayer = entityLayer.GetLayer();
                     if (childLayer != null)
                         layer.ChildLayers.Add(childLayer);
                 }
@@ -193,8 +206,8 @@ namespace LevelEditorPlugin.Editors
             viewport.Measure(new Size(256, 256));
             viewport.Arrange(new Rect(0, 0, 256, 256));
 
-            viewport.GetType().GetMethod("DisposeSizeDependentBuffers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(viewport, null);
-            viewport.GetType().GetMethod("CreateSizeDependentBuffers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(viewport, null);
+            viewport.GetType().GetMethod("DisposeSizeDependentBuffers", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(viewport, null);
+            viewport.GetType().GetMethod("CreateSizeDependentBuffers", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(viewport, null);
 
             screen.CaptureThumbnail(fi.FullName);
 
@@ -204,8 +217,8 @@ namespace LevelEditorPlugin.Editors
             viewport.Measure(new Size(origWidth, origHeight));
             viewport.Arrange(new Rect(0, 0, origWidth, origHeight));
 
-            viewport.GetType().GetMethod("DisposeSizeDependentBuffers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(viewport, null);
-            viewport.GetType().GetMethod("CreateSizeDependentBuffers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(viewport, null);
+            viewport.GetType().GetMethod("DisposeSizeDependentBuffers", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(viewport, null);
+            viewport.GetType().GetMethod("CreateSizeDependentBuffers", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(viewport, null);
             viewport.SetPaused(false);
 
             App.NotificationManager.Show("Thumbnail created");
@@ -216,6 +229,448 @@ namespace LevelEditorPlugin.Editors
             if (currentLoadingState != null)
             {
                 currentLoadingState.Task.Update(status, progress);
+            }
+        }
+
+        public void ExportLevel()
+        {
+            List<SceneLayer> layers = new List<SceneLayer>();
+            RootLayer.CollectLayers(layers);
+
+            List<Entities.Entity> entityList = new List<Entities.Entity>();
+            RootLayer.CollectEntities(entityList);
+
+            //App.Logger.Log("Exporting {0} static model instances", entities.Count());
+            string rootLayerName = RootLayer.LayerName;
+            FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().FullName);
+
+            string basePath = Path.Combine(Environment.CurrentDirectory, "Levels", rootLayerName);
+
+            string meshPath = Path.Combine(basePath, "Meshes");
+            string terrainPath = Path.Combine(basePath, "TerrainChunks");
+            string texturePath = Path.Combine(basePath, "Textures");
+            string lightingPath = Path.Combine(basePath, "Lights");
+
+            Directory.CreateDirectory(basePath);
+            Directory.CreateDirectory(meshPath);
+            Directory.CreateDirectory(terrainPath);
+            Directory.CreateDirectory(texturePath);
+            Directory.CreateDirectory(lightingPath);
+
+            Dictionary<string, bool> hasExportedMesh = new Dictionary<string, bool>();
+
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
+
+            FrostyTaskWindow.Show("Exporting " + rootLayerName, "", (task) =>
+            {
+                #region Meshes
+                uint totalCount = (uint)layers.Count();
+
+                uint smiCount = 0; //Static Model Instances
+                uint objCount = 0; //ObjectRefs
+                uint spatialCount = 0; //SpatialObjRefs
+
+                XmlWriterSettings settings = new XmlWriterSettings
+                {
+                    Indent = true,
+                    OmitXmlDeclaration = true,
+                };
+                XmlWriter xmlWriter = XmlWriter.Create(Path.Combine(meshPath, rootLayerName) + ".xml", settings);
+                XmlWriter xmlWriterMaterials = XmlWriter.Create(Path.Combine(basePath, "Materials.xml"), settings);
+
+                xmlWriter.WriteStartElement("FrostbiteLevel");
+                xmlWriter.WriteElementString("Name", rootLayerName);
+                xmlWriter.WriteElementString("Game", ProfilesLibrary.ProfileName);
+
+                xmlWriterMaterials.WriteStartElement("Materials");
+
+                FBXExporter exporter = new FBXExporter(task);
+
+                foreach (SceneLayer item in layers)
+                {
+                    if (!(item.LayerName == "static_instances"))
+                    {
+                        xmlWriter.WriteStartElement("WorldLayer");
+                        xmlWriter.WriteElementString("Name", item.LayerName);
+
+                        List<Entities.Entity> entities = new List<Entities.Entity>();
+                        item.CollectEntities(entities);
+
+                        ExportObjects(entities.Cast<object>().ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
+                                ref smiCount, ref objCount, ref spatialCount);
+
+                        xmlWriter.WriteEndElement();
+                    }
+                }
+                
+                // export any objects in the entity list for spatial prefabs or object blueprint assets
+                ExportObjects(entityList.Cast<object>().ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
+                                ref smiCount, ref objCount, ref spatialCount);
+
+                xmlWriter.WriteEndElement();
+                xmlWriterMaterials.WriteEndElement();
+
+                xmlWriter.Dispose();
+                xmlWriterMaterials.Dispose();
+                #endregion
+
+                foreach (Entities.Entity entity in entityList)
+                {
+                    if (entity is PbrSphereLightEntity light)
+                    {
+                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
+
+                        task.Update($"Exporting Lights ({entry.DisplayName})");
+
+                        AssetDefinition assetDefinition = App.PluginManager.GetAssetDefinition(entry.Type) ?? new AssetDefinition();
+
+                        string path = Path.Combine(lightingPath, entry.DisplayName);
+
+                        if (!File.Exists(path + ".xml"))
+                        {
+                            assetDefinition.Export(entry, path + ".xml", "xml");
+                        }
+                    }
+
+                    if (entity is TerrainEntity)
+                    {
+                        TerrainEntity terrainEntity = entity as TerrainEntity;
+
+                        int index = 0;
+
+                        foreach (TerrainChunkRenderable terrainChunk in terrainEntity.Terrain.TerrainData.TerrainChunks)
+                        {
+                            task.Update($"Exporting Terrain ({terrainChunk.Level}_{index})");
+
+                            terrainChunk.ExportToOBJ(Path.Combine(terrainPath, $"chunk_{terrainChunk.Level}_{index}.obj"));
+                            index++;
+                        }
+                    }
+                }
+
+                timer.Stop();
+
+                App.Logger.Log("Exported {0} static models, {1} objects, {2} spatialprefabs in {3}", smiCount, objCount, spatialCount, timer.Elapsed);
+            });
+        }
+
+        // this is a seperate method because it was gonna recursively export spatial prefabs but it got messy
+        // if anyone else wants to try that i have left it like this so it's easier
+        private void ExportObjects(List<object> objects, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh, ref uint smiCount, ref uint objCount, ref uint spatialCount, List<string> spatialPaths = null)
+        {
+            string basePath = Path.Combine(Environment.CurrentDirectory, "Levels", RootLayer.LayerName);
+
+            string meshPath = Path.Combine(basePath, "Meshes");
+            string texturePath = Path.Combine(basePath, "Textures");
+
+            xmlWriter.WriteStartElement("StaticModelInstances");
+
+            int count = 0;
+            foreach (object entity in objects.Where(e => e is StaticModelGroupElementEntity || e is StaticModelGroupElementEntityData))
+            {
+                xmlWriter.WriteStartElement("StaticModelGroupElementEntity");
+
+                StaticModelGroupElementEntityData smiData = (entity as StaticModelGroupElementEntity)?.Data ?? entity as StaticModelGroupElementEntityData;
+
+                //Get required assets (Object blueprint, mesh asset)
+                EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(smiData.Blueprint.External.FileGuid);
+
+                if (objBlueprint == null)
+                    continue;
+
+                EbxAsset objAsset = App.AssetManager.GetEbx(objBlueprint);
+
+                dynamic objRootAsset = objAsset.RootObject;
+
+                EbxAssetEntry objMeshAsset = App.AssetManager.GetEbxEntry((objRootAsset.Object.Internal).Mesh.External.FileGuid);
+
+                string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
+
+                EbxAsset meshAssetEbx = App.AssetManager.GetEbx(objMeshAsset);
+                dynamic meshAsset = meshAssetEbx.RootObject;
+
+                if (!hasExportedMesh.TryGetValue(path, out var _))
+                {
+                    if (objMeshAsset == null)
+                        continue;
+
+                    //Update task
+
+                    task.Update("StaticModel " + objMeshAsset.DisplayName);
+
+                    //App.Logger.Log("{0}: {1}", objMeshAsset.DisplayName, smiTransform.ToString());
+
+                    ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
+
+                    exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
+
+                    MeshMaterialCollection materials = new MeshMaterialCollection(
+                        App.AssetManager.GetEbx(objMeshAsset),
+                        new PointerRef()
+                    );
+
+                    ulong resRid = meshAsset.MeshSetResource;
+                    ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
+
+                    var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
+                    ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
+                    WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
+
+                    hasExportedMesh[path] = true;
+                }
+
+                LinearTransform transform = smiData.Transform;
+
+                xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
+                WriteTransformToXML(xmlWriter, transform);
+                xmlWriter.WriteEndElement();
+
+                smiCount++;
+                count++;
+            }
+
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteElementString("StaticInstanceCount", count.ToString());
+            xmlWriter.WriteStartElement("Objects");
+
+            int instanceCount = 0;
+            foreach (object entity in objects.Where(e => e is ObjectReferenceObject || e is ObjectReferenceObjectData))
+            {
+                xmlWriter.WriteStartElement("ObjectInstance");
+                ObjectReferenceObjectData data = (entity as ObjectReferenceObject)?.Data ?? entity as ObjectReferenceObjectData;
+
+                if (data.GetType().Name == "ObjectReferenceObjectData")
+                {
+                    EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
+                    if (objBlueprint != null)
+                    {
+                        EbxAsset objAsset = App.AssetManager.GetEbx(objBlueprint, false);
+                        dynamic objRootAsset = objAsset.RootObject;
+
+                        EbxAssetEntry objMeshAsset;
+
+                        try
+                        {
+                            objMeshAsset = App.AssetManager.GetEbxEntry(objRootAsset.Object.Internal.Mesh.External.FileGuid);
+                        }
+                        catch { continue; }
+
+                        if (objMeshAsset != null)
+                        {
+                            task.Update("Object " + objMeshAsset.DisplayName);
+
+                            LinearTransform blueprintTransform = data.BlueprintTransform;
+                            xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
+                            WriteTransformToXML(xmlWriter, blueprintTransform);
+
+                            string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
+
+                            EbxAsset meshAssetEbx = App.AssetManager.GetEbx(objMeshAsset);
+                            dynamic meshAsset = meshAssetEbx.RootObject;
+
+                            if (!hasExportedMesh.TryGetValue(path, out var _))
+                            {
+                                ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
+
+                                exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
+
+                                MeshMaterialCollection materials = new MeshMaterialCollection(
+                                    App.AssetManager.GetEbx(objMeshAsset),
+                                    new PointerRef()
+                                );
+
+                                ulong resRid = meshAsset.MeshSetResource;
+                                ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
+
+                                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
+                                ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
+                                WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
+
+                                hasExportedMesh[path] = true;
+                            }
+
+                            xmlWriter.WriteEndElement();
+                            objCount++;
+                            instanceCount++;
+                        }
+                    }
+                }
+            }
+
+            foreach (object entity in objects.Where(e => e is SpatialPrefabReferenceObject || e is SpatialPrefabReferenceObjectData))
+            {
+                xmlWriter.WriteStartElement("SpatialPrefabInstance");
+                SpatialPrefabReferenceObjectData data = (entity as SpatialPrefabReferenceObject)?.Data ?? entity as SpatialPrefabReferenceObjectData;
+
+                EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
+
+                if (objBlueprint != null)
+                {
+                    EbxAsset asset = App.AssetManager.GetEbx(objBlueprint);
+                    dynamic rootObject = asset.RootObject;
+
+                    task.Update("SpatialPrefab " + objBlueprint.Name);
+
+                    LinearTransform blueprintTransform = data.BlueprintTransform;
+
+                    xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
+                    WriteTransformToXML(xmlWriter, blueprintTransform);
+                    xmlWriter.WriteEndElement();
+
+                    objCount++;
+                    instanceCount++;
+                    spatialCount++;
+                }
+            }
+
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteElementString("ObjectCount", instanceCount.ToString());
+        }
+
+        private void WriteTransformToXML(XmlWriter xmlWriter, LinearTransform smiTransform)
+        {
+            xmlWriter.WriteStartElement("Transform");
+            xmlWriter.WriteStartElement("LinearTransform");
+            xmlWriter.WriteStartElement("right");
+            WriteVec3ToXML(xmlWriter, smiTransform.right.x.ToString(), smiTransform.right.y.ToString(), smiTransform.right.z.ToString());
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteStartElement("up");
+            WriteVec3ToXML(xmlWriter, smiTransform.up.x.ToString(), smiTransform.up.y.ToString(), smiTransform.up.z.ToString());
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteStartElement("forward");
+            WriteVec3ToXML(xmlWriter, smiTransform.forward.x.ToString(), smiTransform.forward.y.ToString(), smiTransform.forward.z.ToString());
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteStartElement("trans");
+            WriteVec3ToXML(xmlWriter, smiTransform.trans.x.ToString(), smiTransform.trans.y.ToString(), smiTransform.trans.z.ToString());
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteEndElement();
+            xmlWriter.WriteEndElement();
+        }
+
+        private void WriteVec3ToXML(XmlWriter xmlWriter, string x, string y, string z)
+        {
+            xmlWriter.WriteStartElement("Vec3");
+            xmlWriter.WriteElementString("x", x);
+            xmlWriter.WriteElementString("y", y);
+            xmlWriter.WriteElementString("z", z);
+            xmlWriter.WriteEndElement();
+        }
+
+        private void WriteVec4ToXML(XmlWriter xmlWriter, string x, string y, string z, string w)
+        {
+            xmlWriter.WriteStartElement("Vec4");
+            xmlWriter.WriteElementString("x", x);
+            xmlWriter.WriteElementString("y", y);
+            xmlWriter.WriteElementString("z", z);
+            xmlWriter.WriteElementString("w", w);
+            xmlWriter.WriteEndElement();
+        }
+
+        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, MeshSetPlugin.Resources.MeshSet meshSet)
+        {
+            xmlWriter.WriteStartElement("Sections");
+
+            var sections = meshSet.Lods[0].Sections.ToList();
+
+            for (int i = 0; i < Math.Min(materials.Count, sections.Count); i++)
+            {
+                xmlWriter.WriteStartElement("Section");
+                var section = sections[i];
+
+                string materialName = section.Name.Contains("lambert") ? $"{objBlueprint.DisplayName}:{i}" : section.Name;
+                xmlWriter.WriteElementString("Name", materialName);
+
+                xmlWriter.WriteEndElement(); // Section
+            }
+
+            xmlWriter.WriteEndElement(); // Sections
+        }
+
+        private TextureExporter textureExporter = new TextureExporter();
+
+        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, string path, MeshSetPlugin.Resources.MeshSet meshSet, XmlWriter xmlWriter)
+        {
+            try
+            {
+                xmlWriter.WriteStartElement("Material");
+                xmlWriter.WriteElementString("Name", meshAssetEbx.Name);
+
+                var sections = meshSet.Lods[0].Sections.ToList();
+
+                for (int i = 0; i < Math.Min(materials.Count, sections.Count); i++)
+                {
+                    var material = materials[i];
+                    var section = sections[i];
+
+                    // 'lambert' is used in a lot of material names, so when importing to blender it can mix up the materials
+                    // so the mesh name is used instead
+                    string materialName = section.Name.Contains("lambert") ? $"{objBlueprint.DisplayName}:{i}" : section.Name;
+
+                    xmlWriter.WriteStartElement("Material");
+                    xmlWriter.WriteElementString("Name", materialName);
+
+                    xmlWriter.WriteStartElement("VectorParameters");
+
+                    foreach (var vectorParam in material.VectorParameters)
+                    {
+                        xmlWriter.WriteStartElement("Parameter");
+
+                        xmlWriter.WriteElementString("ParameterName", vectorParam.ParameterName.ToString());
+                        xmlWriter.WriteElementString("ParameterType", vectorParam.ParameterType.ToString());
+
+                        xmlWriter.WriteStartElement("Value");
+                        WriteVec4ToXML(xmlWriter, vectorParam.Value.x.ToString(), vectorParam.Value.y.ToString(), vectorParam.Value.z.ToString(), vectorParam.Value.w.ToString());
+                        xmlWriter.WriteEndElement(); // Value
+
+                        xmlWriter.WriteEndElement(); // Parameter
+                    }
+
+                    xmlWriter.WriteEndElement(); // VectorParameters
+
+                    xmlWriter.WriteStartElement("TextureParameters");
+
+                    foreach (var textureParam in material.TextureParameters)
+                    {
+                        xmlWriter.WriteStartElement("Parameter");
+                        var textureRef = textureParam.Value;
+
+                        Guid guid = textureRef.External.FileGuid;
+
+                        EbxAssetEntry textureEntry = App.AssetManager.GetEbxEntry(guid);
+
+                        EbxAsset textureAsset = App.AssetManager.GetEbx(textureEntry);
+                        dynamic rootObjectTexture = textureAsset.RootObject;
+
+                        ulong textureRes = rootObjectTexture.Resource;
+                        ResAssetEntry resEntry = App.AssetManager.GetResEntry(textureRes);
+
+                        Texture texture = App.AssetManager.GetResAs<Texture>(resEntry);
+
+                        string name = textureEntry.DisplayName + ".png";
+                        string finalPath = Path.Combine(path, name);
+
+                        if (!File.Exists(finalPath))
+                        {
+                            textureExporter.Export(texture, finalPath, "*.png");
+                        }
+
+                        xmlWriter.WriteElementString("ParameterName", textureParam.ParameterName);
+                        xmlWriter.WriteElementString("Value", textureEntry.DisplayName);
+
+                        xmlWriter.WriteEndElement(); // Parameter
+                    }
+
+                    xmlWriter.WriteEndElement(); // TextureParameters
+
+                    xmlWriter.WriteEndElement(); // Material
+                }
+
+                xmlWriter.WriteEndElement(); // Materials
+            }
+            catch (Exception ex)
+            {
+                App.Logger.LogError($"Failed to get a texture or vector paramater. Failed Asset: {meshAssetEbx.Name}. Exception: {ex.Message}");
             }
         }
     }
