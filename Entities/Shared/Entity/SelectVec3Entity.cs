@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Vec3 = FrostySdk.Ebx.Vec3;
 
-#if !GW2
+#if !GW2 && !GW1
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.SelectVec3EntityData))]

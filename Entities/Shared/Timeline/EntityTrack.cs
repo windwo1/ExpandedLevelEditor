@@ -13,10 +13,12 @@ namespace LevelEditorPlugin.Entities
 		public EntityTrack(FrostySdk.Ebx.EntityTrackData inData, Entity inParent)
 			: base(inData, inParent)
 		{
+#if !GW1
 			if (Data.GuidChain.Count > 0)
 			{
 				trackName = Data.GuidChain[0].ToString();
 			}
+#endif
 		}
 	}
 }

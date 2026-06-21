@@ -106,13 +106,13 @@ namespace LevelEditorPlugin.Resources
                 public List<hkpTreeNode> Nodes { get; set; }
                 public hkpDomain Domain { get; set; }
 
-                public void Serialize(NativeReader reader)
+                public void Serialize(NativeReader reader, bool is64bits = false)
                 {
                     Nodes = new List<hkpTreeNode>();
                     Domain = new hkpDomain();
 
                     int NumTreeNodes = reader.ReadInt();
-                    reader.BaseStream.Seek(8, SeekOrigin.Current);
+                    reader.BaseStream.Seek(is64bits ? 4 : 8, SeekOrigin.Current);
 
                     Domain.Serialize(reader);
                 }
@@ -133,6 +133,39 @@ namespace LevelEditorPlugin.Resources
 
             public override void Serialize(NativeReader reader, HkxHeader header)
             {
+#if GW1
+                if (header.Bits == 64)
+                {
+                    reader.BaseStream.Seek(17, SeekOrigin.Current);
+                    DispatchType = reader.ReadByte();
+                    BitsPerKey = reader.ReadByte();
+                    ShapeInfoCodecType = reader.ReadByte();
+                    reader.BaseStream.Seek(4, SeekOrigin.Current);
+                    UserData = reader.ReadUInt();
+                    reader.BaseStream.Seek(4, SeekOrigin.Current);
+                    BvTreeType = reader.ReadByte();
+                    reader.BaseStream.Seek(15, SeekOrigin.Current);
+                    NumBitsForChildShapeKey = reader.ReadByte();
+                    reader.BaseStream.Seek(15, SeekOrigin.Current);
+                    int NumInstances64 = reader.ReadInt();
+                    reader.BaseStream.Seek(52, SeekOrigin.Current);
+
+                    Tree = new hkpTree();
+                    Tree.Serialize(reader, true);
+
+                    reader.BaseStream.Seek(16, SeekOrigin.Current);
+                    Instances = new List<hkpInstance>();
+
+                    for (int i = 0; i < NumInstances64; i++)
+                    {
+                        hkpInstance CurInstance = new hkpInstance();
+                        CurInstance.Serialize(reader);
+                        reader.BaseStream.Seek(16, SeekOrigin.Current);
+                        Instances.Add(CurInstance);
+                    }
+                    return;
+                }
+#endif
                 reader.BaseStream.Seek(9, SeekOrigin.Current);
                 DispatchType = reader.ReadByte();
                 BitsPerKey = reader.ReadByte();
@@ -827,7 +860,7 @@ namespace LevelEditorPlugin.Resources
                 reader.ReadLong();
 
                 int unknownCount = 0;
-                if (ProfilesLibrary.DataVersion != 20141118 && ProfilesLibrary.DataVersion != 20141117)
+                if (ProfilesLibrary.DataVersion != 20141118 && ProfilesLibrary.DataVersion != 20141117 && ProfilesLibrary.DataVersion != 20140225)
                 {
                     unknownCount = reader.ReadInt();
                     reader.ReadLong();
@@ -862,11 +895,8 @@ namespace LevelEditorPlugin.Resources
             inst32 = new HkxInstance();
             inst32.Serialize(reader, 32);
 
-            if (ProfilesLibrary.DataVersion != 20140225)
-            {
-                inst64 = new HkxInstance();
-                inst64.Serialize(reader, 64);
-            }
+            inst64 = new HkxInstance();
+            inst64.Serialize(reader, 64);
 
             int fixupSize32 = reader.ReadInt();
             int fixupSize64 = reader.ReadInt();
@@ -1075,6 +1105,32 @@ namespace LevelEditorPlugin.Resources
                 return outTransform;
 
             Matrix preScale = Matrix.Identity;
+#if GW1
+            hkpStaticCompoundShape shape = null;
+
+            foreach (var obj in inst64.Objects)
+            {
+                if (obj is hkpStaticCompoundShape match)
+                {
+                    shape = match;
+                    break;
+                }
+            }
+
+            if (shape == null)
+                return Matrix.Identity;
+
+            var instance = shape.Instances[index];
+
+            var quaternion = new Quaternion(instance.Rotation.X, instance.Rotation.Y, instance.Rotation.Z, instance.Rotation.W);
+
+            Matrix transform = 
+                Matrix.Scaling(instance.Scale) *
+                Matrix.RotationQuaternion(quaternion) *
+                Matrix.Translation(instance.Translation);
+
+            return transform;
+#else
             hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[(int)index];
             hknpShape shape = instance.shape as Hkx.hknpShape;
 
@@ -1089,16 +1145,20 @@ namespace LevelEditorPlugin.Resources
                 instance.Transform;
                 //instance.Rotation * 
                 //Matrix.Translation(instance.Translation);
+#endif
         }
 
         public string GetPhysicsShapeType(int index)
         {
+#if GW1
+            return "hkpStaticCompoundShape";
+#else
+            string placeholderName = "hknpConvexPolytopeShape";
             hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[index];
 
-            // for some reason instance.shape when loading Zomburbia is null, so it just uses a random name
-            string shapeName = instance.shape == null ? "hknpConvexPolytopeShape" : instance.shape.GetType().Name;
-
-            return shapeName;
+            // for some reason instance.shape when loading Zomburbia (GW2) is null, so it just uses a placeholder name
+            return instance.shape == null ? placeholderName : instance.shape.GetType().Name;
+#endif
         }
 
         public override ModifiedResource SaveModifiedResource()

@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
-    <Configurations>MassEffect - Debug;MassEffect - Release;SWBF2 - Debug;SWBF2 - Release;GW2 - Debug;GW2 - Release</Configurations>
+    <Configurations>MassEffect - Debug;MassEffect - Release;SWBF2 - Debug;SWBF2 - Release;GW2 - Debug;GW2 - Release;GW1 - Debug;GW1 - Release</Configurations>
     <Platforms>x64</Platforms>
     <TargetFrameworks>net48</TargetFrameworks>
     <AssemblyTitle>LevelEditorPlugin</AssemblyTitle>
@@ -50,6 +50,14 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'GW2 - Release|x64' ">
     <DefineConstants>TRACE;GW2</DefineConstants>
   </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'GW1 - Debug|x64' ">
+        <DefineConstants>TRACE;DEBUG;GW1</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'GW1 - Release|x64' ">
+        <DefineConstants>TRACE;GW1</DefineConstants>
+    </PropertyGroup>
   
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'SWBF2 - Debug|x64' ">
     <DefineConstants>TRACE;DEBUG;SWBF2</DefineConstants>
@@ -155,6 +163,9 @@
       </Reference>
       <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'GW2 - Debug' Or '$(Configuration)' == 'GW2 - Release'">
         <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\PVZ2SDK.dll</HintPath>
+      </Reference>
+      <Reference Include="EbxClasses" Condition="'$(Configuration)' == 'GW1 - Debug' Or '$(Configuration)' == 'GW1 - Release'">
+          <HintPath>..\..\FrostyEditor\bin\Release\Final\Profiles\PVZ1SDK.dll</HintPath>
       </Reference>
       <Reference Include="EbxClasses">
       </Reference>
@@ -268,6 +279,8 @@
     <Compile Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'MassEffect - Debug' And '$(Configuration)' != 'MassEffect - Release'" />
 
     <Compile Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'GW2 - Debug' And '$(Configuration)' != 'GW2 - Release'" />
+
+    <Compile Remove="GameSpecific\PVZ.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'GW1 - Debug' And '$(Configuration)' != 'GW1 - Release'" />
   </ItemGroup>
 
   <ItemGroup>
@@ -291,7 +304,8 @@
   <ItemGroup>
     <Page Remove="GameSpecific\starwarsbattlefrontii\**" Condition="'$(Configuration)' != 'SWBF2 - Debug' And '$(Configuration)' != 'SWBF2 - Release'" />
     <Page Remove="GameSpecific\MassEffectAndromeda\**" Condition="'$(Configuration)' != 'MassEffect - Debug' And '$(Configuration)' != 'MassEffect - Release'" />
-      <Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'MassEffect - Debug' And '$(Configuration)' != 'MassEffect - Release'" />
+    <Page Remove="GameSpecific\GW2.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'GW2 - Debug' And '$(Configuration)' != 'GW2 - Release'" />
+    <Page Remove="GameSpecific\PVZ.Main_Win64_Retail\**" Condition="'$(Configuration)' != 'GW1 - Debug' And '$(Configuration)' != 'GW1 - Release'" />
   </ItemGroup>
 
   <ItemGroup>

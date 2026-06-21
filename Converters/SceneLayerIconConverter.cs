@@ -27,10 +27,12 @@ namespace LevelEditorPlugin.Converters
             {
                 return subWorldReferenceIcon;
             }
+#if !GW1
             else if (entity is Entities.LayerReferenceObject)
             {
                 return layerReferenceIcon;
             }
+#endif
             else if (entity is Entities.StaticModelGroupEntity)
             {
                 return staticModelGroupIcon;

@@ -357,7 +357,7 @@ namespace LevelEditorPlugin.Resources
                     bool unk = reader.ReadBoolean();
                     subtile.flags = (byte)(((isLeaf) ? 1 : 0) | ((unk) ? 2 : 0));
                     ushort highResolutionCoverageGridStackSize = 11;
-                    if (ProfilesLibrary.DataVersion == 20131115 || ProfilesLibrary.DataVersion == 20141118)
+                    if (ProfilesLibrary.DataVersion == 20131115 || ProfilesLibrary.DataVersion == 20140225 || ProfilesLibrary.DataVersion == 20141118)
                         highResolutionCoverageGridStackSize = reader.ReadUShort();
                     else if (ProfilesLibrary.DataVersion == 20151117)
                         highResolutionCoverageGridStackSize = 0xAB;

@@ -1,3 +1,4 @@
+#if !GW1
 using System;
 using System.Collections.Generic;
 using MathOpCode = FrostySdk.Ebx.MathOpCode;
@@ -661,3 +662,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

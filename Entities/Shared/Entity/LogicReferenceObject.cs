@@ -2,6 +2,7 @@ using LevelEditorPlugin.Editors;
 using LevelEditorPlugin.Managers;
 using System.Collections.Generic;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.LogicReferenceObjectData))]
@@ -27,3 +28,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

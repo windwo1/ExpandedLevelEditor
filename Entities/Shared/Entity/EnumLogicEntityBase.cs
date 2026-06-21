@@ -2,7 +2,7 @@ using FrostySdk;
 using System;
 using System.Collections.Generic;
 
-#if !GW2
+#if !GW2 && !GW1
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.EnumLogicEntityBaseData))]

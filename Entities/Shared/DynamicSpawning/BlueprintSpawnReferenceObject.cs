@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using SharpDX;
 
-#if !GW2
+#if !GW2 && !GW1
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.BlueprintSpawnReferenceObjectData))]

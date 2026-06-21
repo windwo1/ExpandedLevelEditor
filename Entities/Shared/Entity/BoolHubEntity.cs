@@ -14,7 +14,7 @@ namespace LevelEditorPlugin.Entities
 			get
 			{
 				List<ConnectionDesc> outProperties = new List<ConnectionDesc>();
-#if !GW2
+#if !GW2 && !GW1
 				for (int i = 0; i < Data.HashedInput.Count; i++)
 				{
 					outProperties.Add(new ConnectionDesc() { Name = Utils.GetString((int)Data.HashedInput[i]), Direction = Direction.In });

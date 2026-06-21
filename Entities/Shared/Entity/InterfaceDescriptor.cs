@@ -64,10 +64,12 @@ namespace LevelEditorPlugin.Entities
             fileGuid = parent.FileGuid;
             instanceGuid = Guid.Parse(data.__InstanceGuid.ToString());
 
+#if !GW1
             foreach (DataField field in data.Fields)
             {
                 Property<object> property = new Property<object>(this, field.Id, null, field.Name);
             }
+#endif
             foreach (DynamicEvent evt in data.InputEvents)
             {
                 Event<OutputEvent> theEvent = new Event<OutputEvent>(this, evt.Id);

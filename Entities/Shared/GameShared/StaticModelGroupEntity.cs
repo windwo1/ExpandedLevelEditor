@@ -341,13 +341,28 @@ namespace LevelEditorPlugin.Entities
 
         private Resources.HavokPhysicsData GetPhysicsData(FrostySdk.Ebx.StaticModelGroupEntityData inData)
         {
+#if GW1
+            if (inData.PhysicsData == null)
+                return null;
+
+            var physicsData = inData.PhysicsData.GetObjectAs<PhysicsEntityData>();
+
+            if (physicsData == null)
+                return null;
+
+            FrostySdk.Ebx.GroupHavokAsset havokAsset = physicsData.Asset.GetObjectAs<FrostySdk.Ebx.GroupHavokAsset>();
+
+            if (havokAsset == null)
+                return null;
+
+            return App.AssetManager.GetResAs<Resources.HavokPhysicsData>(App.AssetManager.GetResEntry(havokAsset.Resource));
+#else
             foreach (PointerRef component in inData.Components)
             {
                 FrostySdk.Ebx.GameObjectData gameObjectData = component.GetObjectAs<FrostySdk.Ebx.GameObjectData>();
                 if (gameObjectData is FrostySdk.Ebx.StaticModelGroupPhysicsComponentData)
                 {
                     FrostySdk.Ebx.StaticModelGroupPhysicsComponentData physicsComponentData = (FrostySdk.Ebx.StaticModelGroupPhysicsComponentData)gameObjectData;
-#if !GW1
                     foreach (PointerRef body in physicsComponentData.PhysicsBodies)
                     {
                         FrostySdk.Ebx.GroupRigidBodyData bodyData = body.GetObjectAs<FrostySdk.Ebx.GroupRigidBodyData>();
@@ -358,11 +373,11 @@ namespace LevelEditorPlugin.Entities
                             return App.AssetManager.GetResAs<Resources.HavokPhysicsData>(App.AssetManager.GetResEntry(havokAsset.Resource));
                         }
                     }
-#endif
                 }
             }
 
             return null;
+#endif
         }
     }
 }

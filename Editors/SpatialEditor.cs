@@ -317,7 +317,11 @@ namespace LevelEditorPlugin.Editors
 
                 foreach (Entities.Entity entity in entityList)
                 {
-                    if (entity is PbrSphereLightEntity light)
+#if GW1
+                    if (entity is Entities.PointLightEntity light)
+#else
+                    if (entity is Entities.PbrSphereLightEntity light)
+#endif
                     {
                         EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
 
@@ -435,12 +439,21 @@ namespace LevelEditorPlugin.Editors
             xmlWriter.WriteStartElement("Objects");
 
             int instanceCount = 0;
-            foreach (object entity in objects.Where(e => e is ObjectReferenceObject || e is ObjectReferenceObjectData))
-            {
-                xmlWriter.WriteStartElement("ObjectInstance");
-                ObjectReferenceObjectData data = (entity as ObjectReferenceObject)?.Data ?? entity as ObjectReferenceObjectData;
 
-                if (data.GetType().Name == "ObjectReferenceObjectData")
+#if GW1
+            foreach (object entity in objects.Where(e => e is ReferenceObject || e is ReferenceObjectData))
+#else
+            foreach (object entity in objects.Where(e => e is ObjectReferenceObject || e is ObjectReferenceObjectData))
+#endif
+            {
+                xmlWriter.WriteStartElement("SpatialPrefabInstance");
+
+#if GW1
+                ReferenceObjectData data = (entity as ReferenceObject)?.Data ?? entity as ReferenceObjectData;
+#else
+                ObjectReferenceObjectData data = (entity as ObjectReferenceObject)?.Data ?? entity as ObjectReferenceObjectData;
+#endif
+                if (data.GetType().Name == "ObjectReferenceObjectData" || data.GetType().Name == "ReferenceObjectData")
                 {
                     EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
                     if (objBlueprint != null)
@@ -498,10 +511,19 @@ namespace LevelEditorPlugin.Editors
                 }
             }
 
+#if GW1
+            foreach (object entity in objects.Where(e => e is SpatialReferenceObject || e is SpatialReferenceObjectData))
+#else
             foreach (object entity in objects.Where(e => e is SpatialPrefabReferenceObject || e is SpatialPrefabReferenceObjectData))
+#endif
             {
                 xmlWriter.WriteStartElement("SpatialPrefabInstance");
+
+#if GW1
+                SpatialReferenceObjectData data = (entity as SpatialReferenceObject)?.Data ?? entity as SpatialReferenceObjectData;
+#else
                 SpatialPrefabReferenceObjectData data = (entity as SpatialPrefabReferenceObject)?.Data ?? entity as SpatialPrefabReferenceObjectData;
+#endif
 
                 EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
 

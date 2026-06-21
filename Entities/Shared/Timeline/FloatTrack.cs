@@ -47,6 +47,7 @@ namespace LevelEditorPlugin.Entities
 				currentValue = 1.0f;
 				return;
 			}
+#if !GW1
 			else if (curveData.CurveType == FrostySdk.Ebx.CurveType.CurveType_Basic_Linear)
 			{
 				currentValue = curveData.Value[0];
@@ -81,8 +82,9 @@ namespace LevelEditorPlugin.Entities
 					currentValue = SharpDX.MathUtil.Lerp(prevValue, nextValue, (elapsedTime - prevTime) / (nextTime - prevTime));
 				}
 			}
+#endif
 
-			if (sourceProperty != null)
+            if (sourceProperty != null)
 			{
 				sourceProperty.Value = currentValue;
 			}

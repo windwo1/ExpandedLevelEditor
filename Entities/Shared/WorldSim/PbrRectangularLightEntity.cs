@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using SharpDX;
 using LevelEditorPlugin.Render;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.PbrRectangularLightEntityData))]
@@ -37,3 +38,4 @@ namespace LevelEditorPlugin.Entities
         }
     }
 }
+#endif

@@ -12,7 +12,9 @@ namespace LevelEditorPlugin.Entities
 	{
 		public new FrostySdk.Ebx.SchematicChannelEntityData Data => data as FrostySdk.Ebx.SchematicChannelEntityData;
 		public override string DisplayName => "SchematicChannel";
+#if !GW1
 		public override FrostySdk.Ebx.Realm Realm => Data.Realm;
+#endif
 		public override IEnumerable<ConnectionDesc> Links
 		{
 			get
@@ -20,7 +22,7 @@ namespace LevelEditorPlugin.Entities
 				List<ConnectionDesc> outLinks = new List<ConnectionDesc>();
 				foreach (LinkChannel link in schematicChannelAsset.Data.Links)
 				{
-					string name = Utils.GetString(link.Id);
+					string name = FrostySdk.Utils.GetString(link.Id);
 					outLinks.Add(new ConnectionDesc() { Name = name, Direction = Direction.In });
 					outLinks.Add(new ConnectionDesc() { Name = name, Direction = Direction.Out });
 				}
@@ -34,7 +36,7 @@ namespace LevelEditorPlugin.Entities
 				List<ConnectionDesc> outProperties = new List<ConnectionDesc>();
 				foreach (PropertyChannel prop in schematicChannelAsset.Data.Properties)
 				{
-					string name = Utils.GetString(prop.Id);
+					string name = FrostySdk.Utils.GetString(prop.Id);
 					outProperties.Add(new ConnectionDesc() { Name = name, Direction = Direction.In });
 					outProperties.Add(new ConnectionDesc() { Name = name, Direction = Direction.Out });
 				}
@@ -60,8 +62,10 @@ namespace LevelEditorPlugin.Entities
 			: base(inData, inParent)
 		{
 			SetFlags(EntityFlags.HasLogic);
+#if !GW1
 			schematicChannelAsset = LoadedAssetManager.Instance.LoadAsset<SchematicChannelAsset>(this, Data.Channel);
 			schematicChannelAsset.AddEntity(this);
+#endif
 		}
 
         public override void OnEvent(int eventHash)

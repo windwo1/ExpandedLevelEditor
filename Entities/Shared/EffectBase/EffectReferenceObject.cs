@@ -11,6 +11,7 @@ using LevelEditorPlugin.Render.Proxies;
 using SharpDX;
 using D3D11 = SharpDX.Direct3D11;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.EffectReferenceObjectData))]
@@ -44,3 +45,4 @@ namespace LevelEditorPlugin.Entities
         }
     }
 }
+#endif

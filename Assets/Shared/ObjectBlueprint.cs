@@ -19,7 +19,11 @@ namespace LevelEditorPlugin.Assets
         public override FrostySdk.Ebx.ReferenceObjectData CreateEntityData()
         {
             // @hack: this will not work for when wanting to create real entity datas
+#if GW1
+            return new FrostySdk.Ebx.ReferenceObjectData() { Blueprint = ToPointerRef() };
+#else
             return new FrostySdk.Ebx.ObjectReferenceObjectData() { Blueprint = ToPointerRef() };
+#endif
         }
     }
 }

@@ -125,6 +125,16 @@ namespace LevelEditorPlugin.Editors
                 }
                 MeshVariationDb.LoadModifiedVariations();
 
+#if GW1
+                FrostySdk.Ebx.ReferenceObjectData objectData = new FrostySdk.Ebx.ReferenceObjectData()
+                {
+                    Blueprint = new FrostySdk.Ebx.PointerRef(new EbxImportReference()
+                    {
+                        FileGuid = Asset.FileGuid,
+                        ClassGuid = Asset.RootInstanceGuid
+                    })
+                };
+#else
                 FrostySdk.Ebx.ObjectReferenceObjectData objectData = new FrostySdk.Ebx.ObjectReferenceObjectData()
                 {
                     Blueprint = new FrostySdk.Ebx.PointerRef(new EbxImportReference()
@@ -133,6 +143,7 @@ namespace LevelEditorPlugin.Editors
                         ClassGuid = Asset.RootInstanceGuid
                     })
                 };
+#endif
 
                 world = new EntityWorld();
                 ReferenceObject refObj = (Entities.ReferenceObject)Entities.Entity.CreateEntity(objectData, Asset.FileGuid, world);

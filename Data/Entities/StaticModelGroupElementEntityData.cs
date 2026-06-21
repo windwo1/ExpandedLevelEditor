@@ -20,7 +20,9 @@ namespace LevelEditorPlugin.Data
         public FrostySdk.Ebx.PointerRef ObjectVariation { get; set; }
         public uint ObjectVariationHash { get; set; }
         [EbxFieldMeta(EbxFieldType.Struct)]
+#if !GW1
         public FrostySdk.Ebx.RenderingOverrides RenderingOverrides { get; set; } = new FrostySdk.Ebx.RenderingOverrides();
+#endif
         public FrostySdk.Ebx.RadiosityTypeOverride RadiosityTypeOverride { get; set; }
         public bool TerrainShaderNodesEnable { get; set; }
         public FrostySdk.Ebx.CString HavokShapeType { get; set; }

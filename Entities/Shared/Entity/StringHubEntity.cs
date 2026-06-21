@@ -36,10 +36,12 @@ namespace LevelEditorPlugin.Entities
 			: base(inData, inParent)
 		{
 			SetFlags(EntityFlags.HasLogic);
+#if !GW1
 			for (int i = 0; i < Data.InputCount; i++)
             {
 				inProperties.Add(new Property<CString>(this, (int)Data.HashedInput[i], ""));
             }
+#endif
 			inputSelectProperty = new Property<int>(this, Property_InputSelect, Data.InputSelect);
 			outProperty = new Property<CString>(this, Property_Out);
 		}

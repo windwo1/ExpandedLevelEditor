@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-#if !GW2
+#if !GW2 && !GW1
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.ZoneStreamerSubWorldRod))]

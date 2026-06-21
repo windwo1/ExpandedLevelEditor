@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using FrostySdk.Managers.Entries;
+using FrostySdk;
 
 // Setting ComVisible to false makes the types in this assembly not visible
 // to COM components.  If you need to access a type in this assembly from
@@ -47,3 +48,16 @@ using FrostySdk.Managers.Entries;
 [assembly: RegisterUserShader("GizmoShader", "GizmoShader")]
 [assembly: RegisterUserShader("SpriteShader", "SpriteShader")]
 [assembly: RegisterUserShader("LevelShader", "LevelShader")]
+
+#if MASS_EFFECT
+[assembly: PluginValidForProfile((int)ProfileVersion.MassEffectAndromeda)]
+#endif
+#if SWBF2
+[assembly: PluginValidForProfile((int)ProfileVersion.StarWarsBattlefrontII)]
+#endif
+#if GW2
+[assembly: PluginValidForProfile((int)ProfileVersion.PlantsVsZombiesGardenWarfare2)]
+#endif
+#if GW1
+[assembly: PluginValidForProfile((int)ProfileVersion.PlantsVsZombiesGardenWarfare)]
+#endif

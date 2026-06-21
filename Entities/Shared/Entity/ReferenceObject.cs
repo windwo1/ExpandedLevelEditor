@@ -119,7 +119,7 @@ namespace LevelEditorPlugin.Entities
                         foreach (DataField fieldDesc in interfaceDesc.Fields)
                         {
                             string fieldName = fieldDesc.Name;
-                            if (Utils.IsFieldProperty(fieldName))
+                            if (Editors.Utils.IsFieldProperty(fieldName))
                                 continue;
 
                             if (fieldDesc.AccessType == FrostySdk.Ebx.FieldAccessType.FieldAccessType_Source)
@@ -489,10 +489,10 @@ namespace LevelEditorPlugin.Entities
         public override void SetDefaultValues()
         {
             base.SetDefaultValues();
-#if !GW2
+#if !GW2 && !GW1
             Data.LightmapScaleWithSize = true;
 #endif
-#if !GW2
+#if !SWBF2 && !GW2 && !GW1
             Data.OverrideSpawningRadius = -1;
 #endif
         }
@@ -567,7 +567,8 @@ namespace LevelEditorPlugin.Entities
             if (interfaceDescriptor != null)
             {
                 // find all property values
-                foreach (PropertyConnection propertyConnection in Blueprint.Data.PropertyConnections.Where(pc => Utils.IsFieldProperty(((string)pc.SourceField))))
+#if !GW1
+                foreach (PropertyConnection propertyConnection in Blueprint.Data.PropertyConnections.Where(pc => Editors.Utils.IsFieldProperty(((string)pc.SourceField))))
                 {
                     ReferenceObject layerEntity = entities.Where(le =>
                     {
@@ -588,6 +589,7 @@ namespace LevelEditorPlugin.Entities
                         entity.AddPropertyValue(propertyConnection.TargetField, field, propertyConnection, Blueprint);
                     }
                 }
+#endif
             }
         }
 

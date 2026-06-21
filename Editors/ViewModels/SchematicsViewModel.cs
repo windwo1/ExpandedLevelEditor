@@ -636,6 +636,7 @@ namespace LevelEditorPlugin.Editors
 
         public void SetLayer(SceneLayer inLayer)
         {
+#if !GW1
             if (inLayer != m_layer)
             {
                 m_layer = inLayer;
@@ -697,6 +698,7 @@ namespace LevelEditorPlugin.Editors
                     NotifyPropertyChanged("SchematicsData");
                 }
             }
+#endif
         }
 
         public List<ToolbarItem> RegisterToolbarItems()
@@ -837,6 +839,7 @@ namespace LevelEditorPlugin.Editors
                 DataExplorerDropData dropData = (DataExplorerDropData)draggedData.GetData(typeof(DataExplorerDropData));
                 EbxAsset asset = App.AssetManager.GetEbx(dropData.Entry);
 
+#if !GW1
                 LogicReferenceObjectData entityData = (FrostySdk.Ebx.LogicReferenceObjectData)CreateEntityData(typeof(FrostySdk.Ebx.LogicPrefabReferenceObjectData));
                 entityData.Blueprint = new FrostySdk.Ebx.PointerRef(new FrostySdk.IO.EbxImportReference() { FileGuid = dropData.Entry.Guid, ClassGuid = asset.RootInstanceGuid });
 
@@ -878,6 +881,7 @@ namespace LevelEditorPlugin.Editors
 
                         }));
                 }
+#endif
             }
         }
 
@@ -893,6 +897,7 @@ namespace LevelEditorPlugin.Editors
             {
                 if (obj == null)
                 {
+#if !GW1
                     if (m_layer.Entity is Entities.LogicPrefabReferenceObject)
                     {
                         LogicPrefabReferenceObject logicPrefabEntity = m_layer.Entity as Entities.LogicPrefabReferenceObject;
@@ -903,6 +908,7 @@ namespace LevelEditorPlugin.Editors
                         ReferenceObject refObjEntity = m_layer.Entity as Entities.ReferenceObject;
                         SelectedObjectChanged?.Invoke(this, new SelectedObjectChangedEventArgs(refObjEntity.Blueprint.Data, null));
                     }
+#endif
                 }
                 else
                 {
@@ -1039,9 +1045,10 @@ namespace LevelEditorPlugin.Editors
                     origSourceFlagsRealm = e.SourceEntity.FlagsPropertyRealm;
                 if (e.TargetEntity != null)
                     origTargetFlagsRealm = e.TargetEntity.FlagsPropertyRealm;
-                
+
                 // update flags
                 // @todo: prefabs and schematic channels
+#if !GW1
                 if (e.SourceEntity == null)
                 {
                     connection.Flags = 18;
@@ -1092,6 +1099,7 @@ namespace LevelEditorPlugin.Editors
                         }
                     }
                 }
+#endif
 
                 blueprintConnections = refObjEntity.Blueprint.Data.PropertyConnections;
                 schematicDataConnections = m_schematicsData.PropertyConnections;

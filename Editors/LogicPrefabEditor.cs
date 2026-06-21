@@ -73,6 +73,7 @@ namespace LevelEditorPlugin.Editors
 
         protected override void Initialize()
         {
+#if !GW1
             FrostySdk.Ebx.LogicPrefabReferenceObjectData objectData = new FrostySdk.Ebx.LogicPrefabReferenceObjectData()
             {
                 Blueprint = new FrostySdk.Ebx.PointerRef(new FrostySdk.IO.EbxImportReference() { FileGuid = Asset.FileGuid, ClassGuid = Asset.RootInstanceGuid })
@@ -83,7 +84,7 @@ namespace LevelEditorPlugin.Editors
 
             entity = Entity.CreateEntity(objectData, Asset.FileGuid, world) as LogicPrefabReferenceObject;
             rootLayer = MakeFakeLayer();
-
+#endif
             world.Initialize();
 
             if (entity.InterfaceDescriptor != null)

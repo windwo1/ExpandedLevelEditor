@@ -56,7 +56,9 @@ namespace LevelEditorPlugin.Entities
             boolValueProperty = new Property<bool>(this, Property_BoolValue, Data.BoolValue);
             floatValueProperty = new Property<float>(this, Property_FloatValue, Data.FloatValue);
             intValueProperty = new Property<int>(this, Property_IntValue, Data.IntValue);
+#if !MASS_EFFECT && !SWBF2 && !GW1
             uintValueProperty = new Property<uint>(this, Property_UintValue, Data.UIntValue);
+#endif
             stringValueProperty = new Property<CString>(this, Property_StringValue, Data.StringValue);
 
             castToBoolProperty = new Property<bool>(this, Property_CastToBool, false);
@@ -85,7 +87,9 @@ namespace LevelEditorPlugin.Entities
                 castToIntProperty.Value = (int)floatValue;
                 castToUintProperty.Value = (uint)floatValue;
                 castToFloatProperty.Value = floatValue;
+#if !GW1
                 castToStringProperty.Value = floatValue.ToString($"F{Data.Precision}");
+#endif
                 return;
             }
             else if (propertyHash == intValueProperty.NameHash)

@@ -107,7 +107,7 @@ namespace LevelEditorPlugin.Render.Proxies
         {
         }
 
-#if !GW2
+#if !GW2 && !GW1 && !SWBF2
         public ModelRenderProxy(RenderCreateState state, BangerEntity owner)
             : this(state, owner, owner.Mesh.MeshData)
         {

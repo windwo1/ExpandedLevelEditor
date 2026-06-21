@@ -34,7 +34,9 @@ namespace LevelEditorPlugin.Entities
         public SchematicPinTrack(FrostySdk.Ebx.SchematicPinTrackData inData, Entity inParent)
 			: base(inData, inParent)
 		{
+#if !GW1
 			trackName = FrostySdk.Utils.GetString(Data.TargetPinNameHash);
+#endif
 		}
 	}
 }

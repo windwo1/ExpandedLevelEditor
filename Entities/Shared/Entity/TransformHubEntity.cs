@@ -13,10 +13,12 @@ namespace LevelEditorPlugin.Entities
 			get
 			{
 				List<ConnectionDesc> outProperties = new List<ConnectionDesc>();
+#if !GW1
 				for (int i = 0; i < Data.InputCount; i++)
                 {
 					outProperties.Add(new ConnectionDesc() { Name = $"In{i}", Direction = Direction.In });
                 }
+#endif
 				outProperties.Add(new ConnectionDesc("Out", Direction.Out));
 				return outProperties;
 			}

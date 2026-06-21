@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using LevelEditorPlugin.Assets;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.DataSourceQueryEntityData))]
@@ -105,3 +106,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

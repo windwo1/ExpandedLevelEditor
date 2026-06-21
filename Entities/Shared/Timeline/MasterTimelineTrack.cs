@@ -1,4 +1,4 @@
-
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.MasterTimelineTrackData))]
@@ -14,3 +14,4 @@ namespace LevelEditorPlugin.Entities
 	}
 }
 
+#endif

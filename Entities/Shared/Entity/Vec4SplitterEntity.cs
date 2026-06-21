@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Vec4 = FrostySdk.Ebx.Vec4;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
 	[EntityBinding(DataType = typeof(FrostySdk.Ebx.Vec4SplitterEntityData))]
@@ -61,3 +62,4 @@ namespace LevelEditorPlugin.Entities
     }
 }
 
+#endif

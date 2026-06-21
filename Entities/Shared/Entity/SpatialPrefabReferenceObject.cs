@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.SpatialPrefabReferenceObjectData))]
@@ -51,3 +52,4 @@ namespace LevelEditorPlugin.Entities
         }
     }
 }
+#endif

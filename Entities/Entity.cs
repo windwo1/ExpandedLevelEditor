@@ -278,8 +278,10 @@ namespace LevelEditorPlugin.Entities
             {
                 if (inParent is ReferenceObject)
                     fileGuid = (inParent as ReferenceObject).Blueprint.FileGuid;
+#if !GW1
                 else if (inParent is LogicPrefabReferenceObject)
                     fileGuid = (inParent as LogicPrefabReferenceObject).Blueprint.FileGuid;
+#endif
                 else
                     fileGuid = inParent.FileGuid;
 

@@ -140,6 +140,19 @@ namespace LevelEditorPlugin.Editors
                 }
                 MeshVariationDb.LoadModifiedVariations();
 
+#if GW1
+                FrostySdk.Ebx.SpatialReferenceObjectData objectData = new FrostySdk.Ebx.SpatialReferenceObjectData()
+                {
+                    Blueprint = new FrostySdk.Ebx.PointerRef(new FrostySdk.IO.EbxImportReference()
+                    {
+                        FileGuid = Asset.FileGuid,
+                        ClassGuid = Asset.RootInstanceGuid
+                    })
+                };
+
+                world = new EntityWorld();
+                SpatialReferenceObject refObj = (Entities.SpatialReferenceObject)Entities.Entity.CreateEntity(objectData, Asset.FileGuid, world);
+#else
                 FrostySdk.Ebx.SpatialPrefabReferenceObjectData objectData = new FrostySdk.Ebx.SpatialPrefabReferenceObjectData()
                 {
                     Blueprint = new FrostySdk.Ebx.PointerRef(new FrostySdk.IO.EbxImportReference()
@@ -151,8 +164,8 @@ namespace LevelEditorPlugin.Editors
 
                 world = new EntityWorld();
                 SpatialPrefabReferenceObject refObj = (Entities.SpatialPrefabReferenceObject)Entities.Entity.CreateEntity(objectData, Asset.FileGuid, world);
-
                 rootLayer = refObj.GetLayer();
+#endif
 
                 viewport.SetPaused(true);
                 screen.AddEntity(refObj);

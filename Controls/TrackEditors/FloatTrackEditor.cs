@@ -43,6 +43,7 @@ namespace LevelEditorPlugin.Controls.TrackEditors
                 minValue = 0;
                 maxValue = 1;
             }
+#if !GW1
             else if (curveData.CurveType == FrostySdk.Ebx.CurveType.CurveType_Basic_Linear)
             {
                 minValue = curveData.Value[0] - (curveData.Value[0] * 0.5f);
@@ -77,6 +78,7 @@ namespace LevelEditorPlugin.Controls.TrackEditors
                     }
                 }
             }
+#endif
         }
 
         protected override void OnRender(DrawingContext drawingContext)
@@ -129,6 +131,7 @@ namespace LevelEditorPlugin.Controls.TrackEditors
                 points.Add(new Point(a.X + 5, a.Y + 5));
                 points.Add(new Point(b.X + 5, b.Y + 5));
             }
+#if !GW1
             else
             {
                 for (int i = 0; i < curveData.Time.Count; i++)
@@ -143,6 +146,7 @@ namespace LevelEditorPlugin.Controls.TrackEditors
                     points.Add(new Point(x + 5, y + 5));
                 }
             }
+#endif
 
             if (curveData.CurveType == FrostySdk.Ebx.CurveType.CurveType_Basic_Linear || curveData.CurveType == FrostySdk.Ebx.CurveType.CurveType_Basic_Linear || curveData.CurveType == FrostySdk.Ebx.CurveType.CurveType_Basic_Linear || curveData.CurveType == FrostySdk.Ebx.CurveType.CurveType_Basic_Linear)
             {

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if !GW1
 namespace LevelEditorPlugin.Entities
 {
     [EntityBinding(DataType = typeof(FrostySdk.Ebx.LogicPrefabReferenceObjectData))]
@@ -49,3 +50,4 @@ namespace LevelEditorPlugin.Entities
         }
     }
 }
+#endif

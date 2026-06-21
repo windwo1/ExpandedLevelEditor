@@ -16,7 +16,9 @@ namespace LevelEditorPlugin.Entities
 		public PropertyTrackBase(FrostySdk.Ebx.PropertyTrackBaseData inData, Entity inParent)
 			: base(inData, inParent)
 		{
+#if !GW1
 			propertyName = FrostySdk.Utils.GetString(Data.TargetPinNameHash);
+#endif
 		}
 	}
 }

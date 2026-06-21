@@ -143,6 +143,7 @@ namespace LevelEditorPlugin.Layers
             entities.AddRange(Entities.Where(e => e is Entities.ILogicEntity));
             entities.AddRange(ChildLayers.Where(l => l.Entity is Entities.SubWorldReferenceObject).Select(l => l.Entity));
 
+#if !GW1
             foreach (SceneLayer layer in ChildLayers)
             {
                 if (layer.Entity is Entities.LayerReferenceObject)
@@ -150,12 +151,14 @@ namespace LevelEditorPlugin.Layers
                     layer.CollectLogicEntities(entities);
                 }
             }
+#endif
         }
 
         // temp function
         public void CollectComponentEntities(List<Entities.Entity> entities)
         {
             entities.AddRange(Entities.Where(e => e is Entities.IComponentEntity));
+#if !GW1
             foreach (SceneLayer layer in ChildLayers)
             {
                 if (layer.Entity is Entities.LayerReferenceObject)
@@ -163,12 +166,14 @@ namespace LevelEditorPlugin.Layers
                     layer.CollectComponentEntities(entities);
                 }
             }
+#endif
         }
 
         // temp function
         public void CollectTimelines(List<Entities.Entity> timelines)
         {
             timelines.AddRange(Entities.Where(e => e is Entities.TimelineEntity));
+#if !GW1
             foreach (SceneLayer layer in ChildLayers)
             {
                 if (layer.Entity is Entities.LayerReferenceObject)
@@ -176,6 +181,7 @@ namespace LevelEditorPlugin.Layers
                     layer.CollectTimelines(timelines);
                 }
             }
+#endif
         }
 
         public void CollectLayers(List<SceneLayer> layers)
