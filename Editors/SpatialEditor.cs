@@ -446,8 +446,7 @@ namespace LevelEditorPlugin.Editors
             foreach (object entity in objects.Where(e => e is ObjectReferenceObject || e is ObjectReferenceObjectData))
 #endif
             {
-                xmlWriter.WriteStartElement("SpatialPrefabInstance");
-
+                xmlWriter.WriteStartElement("ObjectInstance");
 #if GW1
                 ReferenceObjectData data = (entity as ReferenceObject)?.Data ?? entity as ReferenceObjectData;
 #else

@@ -40,7 +40,7 @@ namespace LevelEditorPlugin.Editors
         public SpatialPrefabEditor(ILogger inLogger)
             : base(inLogger)
         {
-            screen = new LevelEditorScreen(true);
+            screen = new LevelEditorScreen(false);
             dockManager.LoadFromConfig("SpatialPrefabEditor", new Controls.DockManager.DockManagerConfigData()
             {
                 Layouts = new List<Controls.DockManager.DockLayoutData>()
@@ -152,6 +152,7 @@ namespace LevelEditorPlugin.Editors
 
                 world = new EntityWorld();
                 SpatialReferenceObject refObj = (Entities.SpatialReferenceObject)Entities.Entity.CreateEntity(objectData, Asset.FileGuid, world);
+                rootLayer = refObj.GetLayer();
 #else
                 FrostySdk.Ebx.SpatialPrefabReferenceObjectData objectData = new FrostySdk.Ebx.SpatialPrefabReferenceObjectData()
                 {
