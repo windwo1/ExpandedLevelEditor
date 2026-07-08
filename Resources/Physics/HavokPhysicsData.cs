@@ -739,6 +739,11 @@ namespace LevelEditorPlugin.Resources
         {
             private Dictionary<int, Matrix> modifiedTransforms = new Dictionary<int, Matrix>();
 
+            public HavokPhysicsDataModifiedResource()
+                : base(null)
+            {
+            }
+
             public HavokPhysicsDataModifiedResource(ResAssetEntry inEntry)
                 : base(inEntry)
             {
@@ -1220,8 +1225,7 @@ namespace LevelEditorPlugin.Resources
 
         public object Load(object existing, byte[] newData)
         {
-            HavokPhysicsData.HavokPhysicsDataModifiedResource newPhysicsData = ModifiedResource.Read(newData) as HavokPhysicsData.HavokPhysicsDataModifiedResource;
-            return newPhysicsData;
+            return ModifiedResource.Read(newData) as HavokPhysicsData.HavokPhysicsDataModifiedResource;
         }
 
         public void Modify(AssetEntry origEntry, AssetManager am, RuntimeResources runtimeResources, object data, out byte[] outData)
