@@ -1,0 +1,57 @@
+﻿<ctrl:FrostyDockableWindow x:Class="LevelEditorPlugin.Windows.AddObjectWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:LevelEditorPlugin.Windows"
+        xmlns:core="clr-namespace:Frosty.Core.Controls;assembly=FrostyCore"
+        xmlns:ctrl="clr-namespace:Frosty.Controls;assembly=FrostyControls"
+        mc:Ignorable="d"
+        Title="Add New Object" Height="600" Width="400" ResizeMode="NoResize"
+        Loaded="Window_Loaded">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/FrostyControls;component/Themes/Generic.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Background="{StaticResource WindowBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="35"/>
+            <RowDefinition/>
+            <RowDefinition Height="40"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Background="{StaticResource ScrollbarBackground}">
+            <TextBlock Text="Object Type:" VerticalAlignment="Center" Margin="5" Foreground="{StaticResource FontColor}"/>
+
+            <ComboBox x:Name="objTypeComboBox" Width="120" HorizontalAlignment="Left" Margin="5" SelectionChanged="ObjTypeComboBox_SelectionChanged">
+                <ComboBoxItem IsSelected="True" Content="Mesh" Foreground="{StaticResource FontColor}"/>
+                <ComboBoxItem Content="Spatial Prefab" Foreground="{StaticResource FontColor}"/>
+            </ComboBox>
+
+            <TextBlock x:Name="tbType" FontSize="12" VerticalAlignment="Center" Opacity="0.5" Foreground="{StaticResource FontColor}"/>
+        </DockPanel>
+
+        <Border Grid.Row="1" BorderThickness="2">
+            <core:FrostyDataExplorer x:Name="dataExplorer" SelectedAssetDoubleClick="DataExplorer_SelectedAssetDoubleClick"/>
+        </Border>
+
+        <DockPanel Grid.Row="2">
+            <Button x:Name="cancelBtn" Margin="5" Width="75" HorizontalAlignment="Left" Click="CancelBtn_Click">
+                <Button.Content>
+                    <TextBlock Text="Cancel" Foreground="{StaticResource FontColor}"/>
+                </Button.Content>
+            </Button>
+
+            <Button x:Name="createBtn" Margin="5" Width="75" HorizontalAlignment="Right" Click="CreateBtn_Click">
+                <Button.Content>
+                    <TextBlock Text="Create" Foreground="{StaticResource FontColor}"/>
+                </Button.Content>
+            </Button>
+        </DockPanel>
+    </Grid>
+</ctrl:FrostyDockableWindow>

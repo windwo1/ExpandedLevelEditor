@@ -199,6 +199,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Images\Add.png" />
     <Resource Include="Images\Bottom.png" />
     <Resource Include="Images\Components.png" />
     <Resource Include="Images\CurvedWire.png" />

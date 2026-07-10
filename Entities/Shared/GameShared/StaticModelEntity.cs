@@ -59,6 +59,7 @@ namespace LevelEditorPlugin.Entities
 
         public override void Destroy()
         {
+            base.Destroy();
             LoadedAssetManager.Instance.UnloadAsset(Mesh);
         }
     }

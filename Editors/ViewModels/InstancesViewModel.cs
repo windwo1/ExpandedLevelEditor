@@ -55,6 +55,8 @@ namespace LevelEditorPlugin.Editors
         {
             m_owner = inOwner;
             m_owner.Screen.SelectedEntityChanged += SelectedEntityChangedFromScreen;
+            m_owner.Screen.EntityAdded += EntityAddedFromScreen;
+            m_owner.Screen.EntityRemoved += EntityRemovedFromScreen;
 
             List<Layers.SceneLayer> layers = new List<Layers.SceneLayer>();
             m_owner.RootLayer.CollectLayers(layers);
@@ -71,6 +73,16 @@ namespace LevelEditorPlugin.Editors
         private void SelectedEntityChangedFromScreen(object sender, Screens.SelectedEntityChangedEventArgs e)
         {
             SelectedEntity = e.Entity;
+        }
+
+        private void EntityAddedFromScreen(object sender, EventArgs e)
+        {
+            UpdateEntityInstances();
+        }
+
+        private void EntityRemovedFromScreen(object sender, EventArgs e)
+        {
+            UpdateEntityInstances();
         }
 
         private void UpdateEntityInstances()

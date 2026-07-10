@@ -8,38 +8,21 @@ using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
 using FrostySdk.IO;
 using FrostySdk.Managers.Entries;
-using FrostySdk.Resources;
 using LevelEditorPlugin.Assets;
-using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
-using LevelEditorPlugin.Properties;
-using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Screens;
-using MeshSetPlugin;
+using LevelEditorPlugin.Windows;
+using SharpDX;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Markup;
-using System.Windows.Media;
-using System.Xaml;
-using System.Xml;
-using TexturePlugin;
-using static FrostySdk.GeometryDeclarationDesc;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -149,6 +132,8 @@ namespace LevelEditorPlugin.Editors
 
         private FrostyViewport viewport;
 
+        private const float DeletedEntityPos = 999999f;
+
         //static LevelEditor()
         //{
         //    DefaultStyleKeyProperty.OverrideMetadata(typeof(LevelEditor), new FrameworkPropertyMetadata(typeof(LevelEditor)));
@@ -223,7 +208,9 @@ namespace LevelEditorPlugin.Editors
                 new DockingToolbarItem("", "Show/Hide terrain layers tab", "Images/Terrain.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new TerrainLayersViewModel(this))), DockManager, "UID_LevelEditor_TerrainLayers"),
                 new DockingToolbarItem("", "Show/Hide timeline editor", "Images/Timeline.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new TimelineViewModel(this))), DockManager, "UID_LevelEditor_Timeline"),
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
-                new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => { ExportLevel(); }))
+                new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => ExportLevel() )),
+                new DividerToolbarItem(),
+                new RegularToolbarItem("Add Object", "Add a new object to this level", "LevelEditorPlugin/Images/Add.png", new RelayCommand((o) => AddEntity() ))
             };
         }
 
@@ -248,7 +235,7 @@ namespace LevelEditorPlugin.Editors
             Stopwatch timer = new Stopwatch();
             timer.Start();
 
-            LoadedAssetManager.FailedAssets = 0;
+            LoadedAssetManager.Instance.FailedAssets = 0;
 
             // first time loading stuff goes here
             FrostyTaskWindow.Show($"Loading {Path.GetFileName(AssetEntry.Name)}", "", (task) =>
@@ -283,9 +270,9 @@ namespace LevelEditorPlugin.Editors
 
             timer.Stop();
 
-            if (LoadedAssetManager.FailedAssets > 0)
+            if (LoadedAssetManager.Instance.FailedAssets > 0)
             {
-                logger.LogWarning("Failed to create {0} assets, their AssetData was null! This shouldn't affect anything too much.", LoadedAssetManager.FailedAssets);
+                logger.LogWarning("Failed to create {0} assets, their AssetData was null! This shouldn't affect anything too much.", LoadedAssetManager.Instance.FailedAssets);
             }
             
             logger.Log($"Level loaded in {timer.Elapsed}");
@@ -296,6 +283,192 @@ namespace LevelEditorPlugin.Editors
             DockManager.AddItemOnLoad(new TimelineViewModel(this));
             DockManager.AddItemOnLoad(new TerrainLayersViewModel(this));
             DockManager.AddItemOnLoad(new SchematicsViewModel(this, rootLayer));
+
+            screen.OnKeyUp += Screen_OnKeyUp;
+        }
+
+        private void Screen_OnKeyUp(object sender, OnKeyUpEventArgs e)
+        {
+            switch (e.Key)
+            {
+                case Key.Delete:
+                    DeleteEntity(e.Entity);
+                    break;
+            }
+        }
+
+        private void AddEntity()
+        {
+            var window = new AddObjectWindow();
+            window.Show();
+
+            window.SelectedAsset += (s, e) =>
+            {
+                Vector3 pos = GetPositionInFront(distance: 10f);
+
+                if (e.Asset.Type == "ObjectBlueprint")
+                {
+                    // todo
+                }
+                else
+                {
+                    // spatial prefab
+                    EbxAsset layerAsset = null;
+                    Entities.Entity owner = null;
+                    Entities.Entity parent = null;
+                    SceneLayer layer = null;
+
+                    var layers = new List<SceneLayer>();
+                    RootLayer.CollectLayers(layers);
+
+                    foreach (var item in layers)
+                    {
+                        if (layerAsset != null && owner != null && parent != null && layer != null)
+                            break;
+
+                        if (item.LayerName != "static_instances")
+                        {
+                            var entities = new List<Entities.Entity>();
+                            item.CollectEntities(entities);
+
+                            foreach (Entities.Entity layerEntity in entities.Where((Entities.Entity en) => en is SpatialPrefabReferenceObject))
+                            {
+                                layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
+                                owner = layerEntity.Owner;
+                                parent = layerEntity.Parent;
+                                layer = item;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (layerAsset == null || owner == null || parent == null || layer == null)
+                        return;
+
+                    dynamic layerObj = layerAsset.RootObject;
+
+                    var spatialRefObj = CreateEntityData(typeof(SpatialPrefabReferenceObjectData), layerAsset) as SpatialPrefabReferenceObjectData;
+
+                    layerAsset.AddObject(spatialRefObj);
+                    PointerRef spatialRef = new PointerRef(internalRef: spatialRefObj);
+
+                    var transform = Entities.Entity.MakeLinearTransform(Matrix.Translation(pos));
+
+                    var entity = new SpatialPrefabReferenceObject(spatialRefObj, parent, world);
+                    if (parent is WorldPartReferenceObject obj)
+                    {
+                        obj.AddEntity(entity);
+                    }
+
+                    entity.SetDefaultValues();
+                    entity.SetTransform(Matrix.Translation(pos), true);
+                    entity.GetLayer();
+
+                    entity.Data.Blueprint = CreateRef(e.Asset.Name, layerAsset);
+                    entity.Data.LightmapResolutionScale = 1;
+                    entity.Data.CastSunShadowEnable = true;
+                    entity.Data.CastReflectionEnable = true;
+                    entity.Data.CastEnvmapEnable = true;
+                    entity.Data.Excluded = true;
+                    entity.Data.LocalPlayerId = LocalPlayerId.LocalPlayerId_Invalid;
+
+                    App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
+
+                    layer.AddEntity(entity);
+                    screen.AddEntity(entity);
+                    screen.SelectEntity(entity);
+                }
+            };
+        }
+
+        private void DeleteEntity(Entities.Entity entity)
+        {
+            var result = FrostyMessageBox.Show("Are you sure you want to delete the selected entity?", "Level Editor", MessageBoxButton.YesNo);
+            if (result == MessageBoxResult.No)
+                return;
+
+            bool removed = false;
+            if (entity.Owner is StaticModelGroupElementEntity staticEntity)
+            {
+                // don't know of a simple way of deleting a static model so this'll have to do for now
+                var matrix = staticEntity.GetTransform();
+                matrix.TranslationVector = new Vector3(DeletedEntityPos, DeletedEntityPos, DeletedEntityPos);
+
+                staticEntity.SetTransform(matrix, true);
+                (staticEntity.Parent as StaticModelGroupEntity).UpdateData(staticEntity);
+
+                removed = true;
+            }
+            else if (entity.Owner is ReferenceObject objEntity)
+            {
+                var layerAsset = LoadedAssetManager.Instance.GetEbxAsset(objEntity.Owner.FileGuid);
+                layerAsset.RemoveObject(objEntity);
+
+                if (entity.Owner.Parent is WorldPartReferenceObject worldPart)
+                {
+                    worldPart.RemoveEntity(objEntity);
+                }
+
+                App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
+                removed = true;
+            }
+
+            if (removed)
+            {
+                entity.Owner.Layer.RemoveEntity(entity);
+
+                screen.RemoveEntity(entity);
+                ClearSelection();
+                return;
+            }
+
+            App.Logger.LogError("Failed to delete entity of type " + entity.Owner.GetType().Name);
+        }
+
+        private object CreateEntityData(Type entityDataType, EbxAsset asset)
+        {
+            DataBusPeer data = Activator.CreateInstance(entityDataType) as DataBusPeer;
+
+            Guid guid = FrostySdk.Utils.GenerateDeterministicGuid(asset.Objects, entityDataType.Name, asset.FileGuid);
+            data.SetInstanceGuid(new AssetClassGuid(guid, -1));
+
+            byte[] array = guid.ToByteArray();
+            uint flags = (uint)((int)(array[3] & 0x01) << 24 | (int)array[2] << 16 | (int)array[1] << 8 | (int)array[0]);
+
+            data.Flags = flags;
+            return data;
+        }
+
+        private PointerRef CreateRef(string assetPath, EbxAsset asset)
+        {
+            EbxAssetEntry entry = App.AssetManager.GetEbxEntry(assetPath);
+            EbxAsset refAsset = App.AssetManager.GetEbx(entry);
+
+            asset.AddDependency(entry.Guid);
+
+            return new PointerRef(new EbxImportReference()
+            {
+                FileGuid = entry.Guid,
+                ClassGuid = refAsset.RootInstanceGuid
+            });
+        }
+
+        private Vector3 GetPositionInFront(float distance)
+        {
+            var cam = screen.camera;
+
+            Vector3 eye = cam.GetEyePt();
+            Vector3 lookAt = cam.GetLookAtPt();
+
+            Vector3 forward = lookAt - eye;
+            forward.Normalize();
+
+            Vector3 right = Vector3.Cross(Vector3.UnitY, forward);
+            right.Normalize();
+
+            Vector3 up = Vector3.Cross(forward, right);
+
+            return eye + forward * distance + right * 1.0f + up * 0.5f;
         }
     }
 }

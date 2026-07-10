@@ -1,11 +1,12 @@
-﻿using System;
+﻿using LevelEditorPlugin.Assets;
+using LevelEditorPlugin.Entities;
+using SharpDX;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using LevelEditorPlugin.Entities;
-using SharpDX;
 
 namespace LevelEditorPlugin.Layers
 {
@@ -122,6 +123,17 @@ namespace LevelEditorPlugin.Layers
             {
                 AddComponents(inEntity as Entities.IComponentEntity);
             }
+        }
+
+        public void RemoveEntity(Entities.Entity inEntity)
+        {
+            if (Entities.Contains(inEntity.Owner))
+            {
+                Entities.Remove(inEntity.Owner);
+                return;
+            }
+
+            Frosty.Core.App.Logger.LogWarning("Couldn't remove entity from SceneLayer");
         }
 
         public void CollectEntities(List<Entities.Entity> entities)

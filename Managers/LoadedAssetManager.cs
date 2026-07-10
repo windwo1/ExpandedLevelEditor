@@ -40,7 +40,7 @@ namespace LevelEditorPlugin.Managers
             public void Decrement() { RefCount--; }
         }
 
-        public static int FailedAssets = 0;
+        public int FailedAssets = 0;
 
         private Dictionary<EbxImportReference, LoadedAssetInfo> m_loadedAssets = new Dictionary<EbxImportReference, LoadedAssetInfo>();
         private Dictionary<Guid, LoadedAssetInfo> m_loadedEbx = new Dictionary<Guid, LoadedAssetInfo>();

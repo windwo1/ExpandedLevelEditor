@@ -31,6 +31,11 @@ namespace LevelEditorPlugin.Entities
             (Blueprint.Data).Objects.Add(new PointerRef(inEntity.GetRawData()));
         }
 
+        public override void RemoveEntity(Entity inEntity)
+        {
+            (Blueprint.Data).Objects.Remove(new PointerRef(inEntity.GetRawData()));
+        }
+
         public SceneLayer GetLayer()
         {
             //IL_0045: Unknown result type (might be due to invalid IL or missing references)

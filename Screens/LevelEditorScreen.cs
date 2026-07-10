@@ -16,6 +16,9 @@ using System.Windows;
 using System.Runtime.InteropServices;
 using System.IO;
 using LevelEditorPlugin.Library.Image;
+using Frosty.Core;
+using Key = System.Windows.Input.Key;
+using Frosty.Controls;
 
 namespace LevelEditorPlugin.Screens
 {
@@ -375,6 +378,18 @@ namespace LevelEditorPlugin.Screens
         }
     }
 
+    public class OnKeyUpEventArgs : EventArgs
+    {
+        public Key Key { get; private set; }
+        public Entity Entity { get; private set; }
+
+        public OnKeyUpEventArgs(Key key, Entity entity)
+        {
+            Key = key;
+            Entity = entity;
+        }
+    }
+
     public class LevelEditorScreen : DeferredRenderScreen2
     {
         public bool ShowTaskWindow { get; set; }
@@ -391,6 +406,10 @@ namespace LevelEditorPlugin.Screens
         private BindableDepthTexture gizmoDepthTexture;
 
         public event EventHandler<SelectedEntityChangedEventArgs> SelectedEntityChanged;
+        public event EventHandler EntityAdded;
+        public event EventHandler EntityRemoved;
+
+        public event EventHandler<OnKeyUpEventArgs> OnKeyUp;
 
         public LevelEditorScreen(bool groundVisibleByDefault = false)
         {
@@ -412,6 +431,8 @@ namespace LevelEditorPlugin.Screens
                 entity.CreateRenderProxy(newProxies, state);
                 proxies.AddRange(newProxies);
             });
+
+            EntityAdded?.Invoke(this, EventArgs.Empty);
         }
 
         public void RemoveEntity(Entity entity)
@@ -420,6 +441,8 @@ namespace LevelEditorPlugin.Screens
             {
                 proxies.RemoveAll(proxy => proxy.OwnerEntity == entity);
             });
+
+            EntityRemoved?.Invoke(this, EventArgs.Empty);
         }
 
         public override void Update(double timestep)
@@ -713,6 +736,16 @@ namespace LevelEditorPlugin.Screens
             public bool MouseDown;
         }
         private MouseButtonData mouseButtonData;
+
+        public override void KeyUp(int key)
+        {
+            base.KeyUp(key);
+
+            if (selectedProxies.Count == 0)
+                return;
+
+            OnKeyUp?.Invoke(this, new OnKeyUpEventArgs((Key)key, selectedProxies[0].OwnerEntity));
+        }
 
         public override void MouseDown(int x, int y, MouseButton button)
         {

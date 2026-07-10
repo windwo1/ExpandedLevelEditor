@@ -107,6 +107,12 @@ namespace LevelEditorPlugin.Editors
             screen.SelectEntity(selectedEntity);
         }
 
+        public void ClearSelection()
+        {
+            selectedEntity = null;
+            SelectedEntityChanged?.Invoke(this, new SelectedEntityChangedEventArgs(editingWorld, null));
+        }
+
         public void CenterOnSelection()
         {
             screen.CenterOnSelection();
