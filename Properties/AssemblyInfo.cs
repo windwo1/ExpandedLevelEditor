@@ -35,6 +35,7 @@ using LevelEditorPlugin;
 [assembly: RegisterMenuExtension(typeof(EntityGeneratorExtension))]
 [assembly: RegisterMenuExtension(typeof(DumpLayoutsToLogExtension))]
 [assembly: RegisterMenuExtension(typeof(BlueprintAnalysisExtension))]
+[assembly: RegisterMenuExtension(typeof(SaveToOldProject))]
 
 [assembly: RegisterAssetDefinition("LevelData", typeof(LevelDataAssetDefinition))]
 [assembly: RegisterAssetDefinition("DetachedSubWorldData", typeof(DetachedSubWorldDataAssetDefinition))]

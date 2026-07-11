@@ -2,6 +2,7 @@
 using Frosty.Core;
 using Frosty.Core.Controls;
 using Frosty.Core.Viewport;
+using Frosty.Core.Viewport.DXUT;
 using Frosty.Core.Windows;
 using FrostySdk;
 using FrostySdk.Ebx;
@@ -21,6 +22,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Input;
 
@@ -86,6 +88,18 @@ namespace LevelEditorPlugin.Editors
                 }
             }
             return false;
+        }
+
+        public static Vector3 GetPositionInFront(this BaseCamera cam, float distance)
+        {
+            var offset = new Vector3(0, -2, 0);
+
+            Vector3 eye = cam.GetEyePt() * new Vector3(-1, 1, 1);
+            Vector3 lookAt = cam.GetLookAtPt() * new Vector3(-1, 1, 1);
+            Vector3 forward = lookAt - eye;
+            forward.Normalize();
+
+            return (eye + forward * distance) + offset;
         }
     }
 
@@ -304,81 +318,98 @@ namespace LevelEditorPlugin.Editors
 
             window.SelectedAsset += (s, e) =>
             {
-                Vector3 pos = GetPositionInFront(distance: 10f);
+                int count = e.Count;
+                int maxCount = count;
 
-                if (e.Asset.Type == "ObjectBlueprint")
+                FrostyTaskWindow.Show("Adding " + e.Asset.DisplayName, "", (task) =>
                 {
-                    // todo
-                }
-                else
-                {
-                    // spatial prefab
-                    EbxAsset layerAsset = null;
-                    Entities.Entity owner = null;
-                    Entities.Entity parent = null;
-                    SceneLayer layer = null;
-
-                    var layers = new List<SceneLayer>();
-                    RootLayer.CollectLayers(layers);
-
-                    foreach (var item in layers)
+                    while (count > 0)
                     {
-                        if (layerAsset != null && owner != null && parent != null && layer != null)
-                            break;
+                        Vector3 pos = screen.camera.GetPositionInFront(distance: 8f);
 
-                        if (item.LayerName != "static_instances")
+                        EbxAsset layerAsset = null;
+                        Entities.Entity owner = null;
+                        Entities.Entity parent = null;
+                        SceneLayer layer = null;
+
+                        var layers = new List<SceneLayer>();
+                        RootLayer.CollectLayers(layers);
+
+                        // get any layer of the level so we can add to it
+                        foreach (var item in layers)
                         {
-                            var entities = new List<Entities.Entity>();
-                            item.CollectEntities(entities);
-
-                            foreach (Entities.Entity layerEntity in entities.Where((Entities.Entity en) => en is SpatialPrefabReferenceObject))
-                            {
-                                layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
-                                owner = layerEntity.Owner;
-                                parent = layerEntity.Parent;
-                                layer = item;
+                            if (layerAsset != null && owner != null && parent != null && layer != null)
                                 break;
+
+                            if (item.LayerName != "static_instances")
+                            {
+                                var entities = new List<Entities.Entity>();
+                                item.CollectEntities(entities);
+
+                                foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
+                                {
+                                    layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
+                                    owner = layerEntity.Owner;
+                                    parent = layerEntity.Parent;
+                                    layer = item;
+                                    break;
+                                }
                             }
                         }
+
+                        if (layerAsset == null || owner == null || parent == null || layer == null)
+                            return;
+
+                        string prefabName = e.Asset.Name;
+
+                        var prefabObj = CreateEntityData(typeof(ReferenceObjectData), layerAsset) as ReferenceObjectData;
+
+                        layerAsset.AddObject(prefabObj);
+
+                        var transform = Entities.Entity.MakeLinearTransform(Matrix.Translation(pos));
+
+                        var entity = new ReferenceObject(prefabObj, parent, world, CreateRef(prefabName, layerAsset));
+                        if (parent is WorldPartReferenceObject obj)
+                        {
+                            obj.AddEntity(entity);
+                        }
+
+                        var originalOwner = entity.Owner;
+                        entity.SetDefaultValues();
+                        entity.SetTransform(Matrix.Translation(pos), true);
+                        entity.SetOwner(originalOwner);
+
+                        prefabObj.LightmapResolutionScale = 1;
+                        prefabObj.CastSunShadowEnable = true;
+                        prefabObj.CastReflectionEnable = true;
+                        prefabObj.CastEnvmapEnable = true;
+                        prefabObj.Excluded = true;
+
+                        layer.AddEntity(entity);
+                        screen.AddEntity(entity, true);
+                        SelectEntity(entity);
+
+                        App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
+
+                        count--;
+                        task.Update($"{count}/{maxCount}");
                     }
-
-                    if (layerAsset == null || owner == null || parent == null || layer == null)
-                        return;
-
-                    dynamic layerObj = layerAsset.RootObject;
-
-                    var spatialRefObj = CreateEntityData(typeof(SpatialPrefabReferenceObjectData), layerAsset) as SpatialPrefabReferenceObjectData;
-
-                    layerAsset.AddObject(spatialRefObj);
-                    PointerRef spatialRef = new PointerRef(internalRef: spatialRefObj);
-
-                    var transform = Entities.Entity.MakeLinearTransform(Matrix.Translation(pos));
-
-                    var entity = new SpatialPrefabReferenceObject(spatialRefObj, parent, world);
-                    if (parent is WorldPartReferenceObject obj)
-                    {
-                        obj.AddEntity(entity);
-                    }
-
-                    entity.SetDefaultValues();
-                    entity.SetTransform(Matrix.Translation(pos), true);
-                    entity.GetLayer();
-
-                    entity.Data.Blueprint = CreateRef(e.Asset.Name, layerAsset);
-                    entity.Data.LightmapResolutionScale = 1;
-                    entity.Data.CastSunShadowEnable = true;
-                    entity.Data.CastReflectionEnable = true;
-                    entity.Data.CastEnvmapEnable = true;
-                    entity.Data.Excluded = true;
-                    entity.Data.LocalPlayerId = LocalPlayerId.LocalPlayerId_Invalid;
-
-                    App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
-
-                    layer.AddEntity(entity);
-                    screen.AddEntity(entity);
-                    screen.SelectEntity(entity);
-                }
+                });
             };
+        }
+
+        private object CreateEntityData(Type entityDataType, EbxAsset asset)
+        {
+            DataBusPeer data = Activator.CreateInstance(entityDataType) as DataBusPeer;
+
+            Guid guid = FrostySdk.Utils.GenerateDeterministicGuid(asset.Objects, entityDataType.Name, asset.FileGuid);
+            data.SetInstanceGuid(new AssetClassGuid(guid, -1));
+
+            byte[] array = guid.ToByteArray();
+            uint flags = (uint)((int)(array[3] & 0x01) << 24 | (int)array[2] << 16 | (int)array[1] << 8 | (int)array[0]);
+
+            data.Flags = flags;
+            return data;
         }
 
         private void DeleteEntity(Entities.Entity entity)
@@ -422,21 +453,7 @@ namespace LevelEditorPlugin.Editors
                 return;
             }
 
-            App.Logger.LogError("Failed to delete entity of type " + entity.Owner.GetType().Name);
-        }
-
-        private object CreateEntityData(Type entityDataType, EbxAsset asset)
-        {
-            DataBusPeer data = Activator.CreateInstance(entityDataType) as DataBusPeer;
-
-            Guid guid = FrostySdk.Utils.GenerateDeterministicGuid(asset.Objects, entityDataType.Name, asset.FileGuid);
-            data.SetInstanceGuid(new AssetClassGuid(guid, -1));
-
-            byte[] array = guid.ToByteArray();
-            uint flags = (uint)((int)(array[3] & 0x01) << 24 | (int)array[2] << 16 | (int)array[1] << 8 | (int)array[0]);
-
-            data.Flags = flags;
-            return data;
+            App.Logger.LogError($"Failed to delete entity of type {entity.Owner.GetType().Name}. Can only delete static models & prefabs for now.");
         }
 
         private PointerRef CreateRef(string assetPath, EbxAsset asset)
@@ -451,24 +468,6 @@ namespace LevelEditorPlugin.Editors
                 FileGuid = entry.Guid,
                 ClassGuid = refAsset.RootInstanceGuid
             });
-        }
-
-        private Vector3 GetPositionInFront(float distance)
-        {
-            var cam = screen.camera;
-
-            Vector3 eye = cam.GetEyePt();
-            Vector3 lookAt = cam.GetLookAtPt();
-
-            Vector3 forward = lookAt - eye;
-            forward.Normalize();
-
-            Vector3 right = Vector3.Cross(Vector3.UnitY, forward);
-            right.Normalize();
-
-            Vector3 up = Vector3.Cross(forward, right);
-
-            return eye + forward * distance + right * 1.0f + up * 0.5f;
         }
     }
 }

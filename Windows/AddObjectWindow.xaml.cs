@@ -10,10 +10,12 @@ namespace LevelEditorPlugin.Windows
     public class AddObjectEventArgs
     {
         public EbxAssetEntry Asset { get; private set; }
+        public int Count { get; private set; }
 
-        public AddObjectEventArgs(EbxAssetEntry asset)
+        public AddObjectEventArgs(EbxAssetEntry asset, int count)
         {
             Asset = asset;
+            Count = count;
         }
     }
 
@@ -24,6 +26,12 @@ namespace LevelEditorPlugin.Windows
     {
         public event EventHandler<AddObjectEventArgs> SelectedAsset;
 
+        private int count;
+        private bool valid = true;
+
+        private const int maxCount = 100;
+        private const int minCount = 1;
+
         public AddObjectWindow()
         {
             InitializeComponent();
@@ -32,6 +40,7 @@ namespace LevelEditorPlugin.Windows
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             SetDataExplorerTypes();
+            SetCount();
         }
 
         private void ObjTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -54,8 +63,41 @@ namespace LevelEditorPlugin.Windows
             Create();
         }
 
+        private void CountText_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            SetCount();
+        }
+
+        private void SetCount()
+        {
+            try
+            {
+                count = int.Parse(countText.Text);
+                Validate();
+            }
+            catch { Invalidate(); }
+
+            if (count > maxCount) countText.Text = maxCount.ToString();
+            if (count < minCount) countText.Text = minCount.ToString();
+        }
+
+        private void Invalidate()
+        {
+            valid = false;
+            createBtn.IsEnabled = false;
+        }
+
+        private void Validate()
+        {
+            valid = true;
+            createBtn.IsEnabled = true;
+        }
+
         private void Create()
         {
+            if (!valid)
+                return;
+
             string assetType = GetComboBoxType();
             if (dataExplorer.SelectedAsset == null || dataExplorer.SelectedAsset.Type != assetType)
             {
@@ -63,7 +105,7 @@ namespace LevelEditorPlugin.Windows
                 return;
             }
 
-            SelectedAsset?.Invoke(this, new AddObjectEventArgs(dataExplorer.SelectedAsset as EbxAssetEntry));
+            SelectedAsset?.Invoke(this, new AddObjectEventArgs(dataExplorer.SelectedAsset as EbxAssetEntry, count));
             Close();
         }
 

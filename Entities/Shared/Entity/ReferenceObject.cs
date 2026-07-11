@@ -205,9 +205,14 @@ namespace LevelEditorPlugin.Entities
         protected List<IEvent> events = new List<IEvent>();
         protected List<ILink> links = new List<ILink>();
 
-        public ReferenceObject(FrostySdk.Ebx.ReferenceObjectData inData, Entity inParent, EntityWorld inWorld)
+        public ReferenceObject(FrostySdk.Ebx.ReferenceObjectData inData, Entity inParent, EntityWorld inWorld, PointerRef? inBlueprint = null)
             : base(inData, inParent)
         {
+            if (inBlueprint != null)
+            {
+                Data.Blueprint = (PointerRef)inBlueprint;
+            }
+
             if (inWorld != null)
             {
                 world = inWorld;

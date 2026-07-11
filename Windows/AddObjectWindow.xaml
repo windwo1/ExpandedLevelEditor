@@ -47,11 +47,17 @@
                 </Button.Content>
             </Button>
 
-            <Button x:Name="createBtn" Margin="5" Width="75" HorizontalAlignment="Right" Click="CreateBtn_Click">
+            <Button x:Name="createBtn" Margin="5" Width="75" DockPanel.Dock="Right" Click="CreateBtn_Click">
                 <Button.Content>
                     <TextBlock Text="Create" Foreground="{StaticResource FontColor}"/>
                 </Button.Content>
             </Button>
+
+            <Border DockPanel.Dock="Right" Margin="5" BorderThickness="1" BorderBrush="{StaticResource ControlBackground}">
+                <TextBox x:Name="countText" TextChanged="CountText_TextChanged" Text="1" FontSize="16" MinWidth="25" Background="{StaticResource MenuItemBackground}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+            </Border>
+
+            <TextBlock Text="Count:" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource FontColor}"/>
         </DockPanel>
     </Grid>
 </ctrl:FrostyDockableWindow>

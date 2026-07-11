@@ -17,6 +17,12 @@ namespace LevelEditorPlugin.Resources
         private int modificationCount;
         private ResAssetEntry resEntry;
 
+        public ResAssetEntry Entry
+        {
+            get => resEntry;
+            set => resEntry = value;
+        }
+
         public BaseModifiedResource(ResAssetEntry inEntry)
         {
             resEntry = inEntry;

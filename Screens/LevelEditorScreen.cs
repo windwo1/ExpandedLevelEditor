@@ -390,6 +390,16 @@ namespace LevelEditorPlugin.Screens
         }
     }
 
+    public class SelectedEntityAddedEventArgs : EventArgs
+    {
+        public Entity Entity { get; private set; }
+
+        public SelectedEntityAddedEventArgs(Entity entity)
+        {
+            Entity = entity;
+        }
+    }
+
     public class LevelEditorScreen : DeferredRenderScreen2
     {
         public bool ShowTaskWindow { get; set; }
@@ -406,7 +416,7 @@ namespace LevelEditorPlugin.Screens
         private BindableDepthTexture gizmoDepthTexture;
 
         public event EventHandler<SelectedEntityChangedEventArgs> SelectedEntityChanged;
-        public event EventHandler EntityAdded;
+        public event EventHandler<SelectedEntityAddedEventArgs> EntityAdded;
         public event EventHandler EntityRemoved;
 
         public event EventHandler<OnKeyUpEventArgs> OnKeyUp;
@@ -423,7 +433,7 @@ namespace LevelEditorPlugin.Screens
             });
         }
 
-        public void AddEntity(Entity entity)
+        public void AddEntity(Entity entity, bool selectEntity = false)
         {
             renderTasks.Enqueue((RenderCreateState state) =>
             {
@@ -432,7 +442,10 @@ namespace LevelEditorPlugin.Screens
                 proxies.AddRange(newProxies);
             });
 
-            EntityAdded?.Invoke(this, EventArgs.Empty);
+            EntityAdded?.Invoke(this, new SelectedEntityAddedEventArgs(entity));
+
+            if (selectEntity)
+                SelectEntity(entity);
         }
 
         public void RemoveEntity(Entity entity)
@@ -520,7 +533,7 @@ namespace LevelEditorPlugin.Screens
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        FrostyTaskWindow.Show("Preparing scene", "This might take some time!", (task) =>
+                        FrostyTaskWindow.Show("Preparing scene", "", (task) =>
                         {
                             ProcessRenderTasks();
                             ShowTaskWindow = false;

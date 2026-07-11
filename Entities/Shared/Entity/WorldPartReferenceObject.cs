@@ -29,6 +29,7 @@ namespace LevelEditorPlugin.Entities
         {
             inEntity.SetParent(this);
             (Blueprint.Data).Objects.Add(new PointerRef(inEntity.GetRawData()));
+            entities.Add(inEntity);
         }
 
         public override void RemoveEntity(Entity inEntity)

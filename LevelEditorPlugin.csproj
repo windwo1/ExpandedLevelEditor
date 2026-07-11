@@ -311,6 +311,7 @@
 
   <ItemGroup>
       <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+      <ProjectReference Include="..\..\FrostyEditor\FrostyEditor.csproj" />
       <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj" />
       <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
       <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />

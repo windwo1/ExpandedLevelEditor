@@ -14,6 +14,7 @@ using Frosty.Core.IO;
 using FrostySdk.Managers.Entries;
 using LevelEditorPlugin.Resources.Hkx;
 using Frosty.Core;
+using Frosty.Controls;
 
 namespace LevelEditorPlugin.Resources
 {
@@ -737,6 +738,7 @@ namespace LevelEditorPlugin.Resources
     {
         public class HavokPhysicsDataModifiedResource : BaseModifiedResource
         {
+
             private Dictionary<int, Matrix> modifiedTransforms = new Dictionary<int, Matrix>();
 
             public HavokPhysicsDataModifiedResource()
@@ -747,6 +749,7 @@ namespace LevelEditorPlugin.Resources
             public HavokPhysicsDataModifiedResource(ResAssetEntry inEntry)
                 : base(inEntry)
             {
+                Entry = inEntry;
             }
 
             public bool GetTransform(int index, out Matrix outTransform)
@@ -846,6 +849,8 @@ namespace LevelEditorPlugin.Resources
             modifiedData = (inModifiedData != null)
                 ? inModifiedData as HavokPhysicsDataModifiedResource
                 : new HavokPhysicsDataModifiedResource(entry);
+
+            modifiedData.Entry = entry;
 
             resData = reader.ReadToEnd();
             resEntry = entry;
