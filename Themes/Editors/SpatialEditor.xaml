@@ -47,6 +47,7 @@
                                     <Border BorderThickness="0 2 0 2" BorderBrush="{StaticResource ControlBackground}">
                                         <Grid>
                                             <core:FrostyViewport x:Name="PART_Renderer"/>
+
                                             <Rectangle x:Name="PART_ThumbnailBorder" HorizontalAlignment="Center" VerticalAlignment="Center" Width="256" Height="256" Stroke="Red" StrokeThickness="1" StrokeDashArray="8,4" Visibility="Collapsed"/>
                                         </Grid>
                                     </Border>

@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using D3D11 = SharpDX.Direct3D11;
 
 namespace LevelEditorPlugin.Render
@@ -30,7 +31,21 @@ namespace LevelEditorPlugin.Render
         public ObjRenderable(RenderCreateState state, string objName)
         {
             string relPath = $"Resources/Meshes/{objName}.bin";
-            using (NativeReader reader = new NativeReader(new FileStream(relPath, FileMode.Open, FileAccess.Read)))
+
+            Stream fileStream = null;
+
+            string fullPath = Path.Combine(Environment.CurrentDirectory, relPath);
+            if (!File.Exists(fullPath))
+            {
+                var uri = new Uri($"pack://application:,,,/LevelEditorPlugin;component/Resources/Meshes/{objName}.bin", UriKind.Absolute);
+                fileStream = Application.GetResourceStream(uri).Stream;
+            }
+            else
+            {
+                fileStream = new FileStream(relPath, FileMode.Open, FileAccess.Read);
+            }
+
+            using (NativeReader reader = new NativeReader(fileStream))
             {
                 long vertexBufferSize = reader.ReadLong();
                 vertexStride = reader.ReadInt();

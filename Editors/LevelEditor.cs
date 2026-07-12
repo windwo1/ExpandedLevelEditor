@@ -16,6 +16,7 @@ using LevelEditorPlugin.Managers;
 using LevelEditorPlugin.Screens;
 using LevelEditorPlugin.Windows;
 using SharpDX;
+using SharpDX.Direct2D1;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,7 +25,10 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using Matrix = SharpDX.Matrix;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -224,7 +228,8 @@ namespace LevelEditorPlugin.Editors
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
                 new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => ExportLevel() )),
                 new DividerToolbarItem(),
-                new RegularToolbarItem("Add Object", "Add a new object to this level", "LevelEditorPlugin/Images/Add.png", new RelayCommand((o) => AddEntity() ))
+                new RegularToolbarItem("Add Object", "Add a new object to this level", "LevelEditorPlugin/Images/Add.png", new RelayCommand((o) => AddEntityFromButton() )),
+                new RegularToolbarItem("", "Duplicate the selected object", "LevelEditorPlugin/Images/Copy.png", new RelayCommand((o) => DuplicateEntity() )),
             };
         }
 
@@ -311,91 +316,118 @@ namespace LevelEditorPlugin.Editors
             }
         }
 
-        private void AddEntity()
+        private void AddEntityFromButton()
         {
             var window = new AddObjectWindow();
             window.Show();
 
-            window.SelectedAsset += (s, e) =>
+            var pos = screen.camera.GetPositionInFront(distance: 8f);
+            window.SelectedAsset += (s, e) => AddEntity(e.Asset, e.Count, Matrix.Translation(pos));
+        }
+
+        private void DuplicateEntity()
+        {
+            if (selectedEntity == null)
             {
-                int count = e.Count;
-                int maxCount = count;
+                App.Logger.Log("Select an entity first to duplicate it");
+                return;
+            }
 
-                FrostyTaskWindow.Show("Adding " + e.Asset.DisplayName, "", (task) =>
+            int amount = 1;
+
+            if (selectedEntity is ReferenceObject refObj)
+            {
+                var guid = refObj.Data.Blueprint.External.FileGuid;
+                var transform = refObj.GetTransform();
+
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform);
+                return;
+            }
+            else if (selectedEntity is StaticModelGroupElementEntity staticObj)
+            {
+                var guid = staticObj.Data.Blueprint.External.FileGuid;
+                var transform = staticObj.GetTransform();
+
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform);
+                return;
+            }
+
+            App.Logger.LogWarning("Cannot duplicate entity of type " + selectedEntity.GetType().Name);
+        }
+
+        private void AddEntity(EbxAssetEntry asset, int count, Matrix transform)
+        {
+            int maxCount = count;
+
+            FrostyTaskWindow.Show("Adding " + asset.DisplayName, "", (task) =>
+            {
+                while (count > 0)
                 {
-                    while (count > 0)
+                    EbxAsset layerAsset = null;
+                    Entities.Entity owner = null;
+                    Entities.Entity parent = null;
+                    SceneLayer layer = null;
+
+                    var layers = new List<SceneLayer>();
+                    RootLayer.CollectLayers(layers);
+
+                    // get any layer of the level so we can add to it
+                    foreach (var item in layers)
                     {
-                        Vector3 pos = screen.camera.GetPositionInFront(distance: 8f);
+                        if (layerAsset != null && owner != null && parent != null && layer != null)
+                            break;
 
-                        EbxAsset layerAsset = null;
-                        Entities.Entity owner = null;
-                        Entities.Entity parent = null;
-                        SceneLayer layer = null;
-
-                        var layers = new List<SceneLayer>();
-                        RootLayer.CollectLayers(layers);
-
-                        // get any layer of the level so we can add to it
-                        foreach (var item in layers)
+                        if (item.LayerName != "static_instances")
                         {
-                            if (layerAsset != null && owner != null && parent != null && layer != null)
-                                break;
+                            var entities = new List<Entities.Entity>();
+                            item.CollectEntities(entities);
 
-                            if (item.LayerName != "static_instances")
+                            foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
                             {
-                                var entities = new List<Entities.Entity>();
-                                item.CollectEntities(entities);
-
-                                foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
-                                {
-                                    layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
-                                    owner = layerEntity.Owner;
-                                    parent = layerEntity.Parent;
-                                    layer = item;
-                                    break;
-                                }
+                                layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
+                                owner = layerEntity.Owner;
+                                parent = layerEntity.Parent;
+                                layer = item;
+                                break;
                             }
                         }
-
-                        if (layerAsset == null || owner == null || parent == null || layer == null)
-                            return;
-
-                        string prefabName = e.Asset.Name;
-
-                        var prefabObj = CreateEntityData(typeof(ReferenceObjectData), layerAsset) as ReferenceObjectData;
-
-                        layerAsset.AddObject(prefabObj);
-
-                        var transform = Entities.Entity.MakeLinearTransform(Matrix.Translation(pos));
-
-                        var entity = new ReferenceObject(prefabObj, parent, world, CreateRef(prefabName, layerAsset));
-                        if (parent is WorldPartReferenceObject obj)
-                        {
-                            obj.AddEntity(entity);
-                        }
-
-                        var originalOwner = entity.Owner;
-                        entity.SetDefaultValues();
-                        entity.SetTransform(Matrix.Translation(pos), true);
-                        entity.SetOwner(originalOwner);
-
-                        prefabObj.LightmapResolutionScale = 1;
-                        prefabObj.CastSunShadowEnable = true;
-                        prefabObj.CastReflectionEnable = true;
-                        prefabObj.CastEnvmapEnable = true;
-                        prefabObj.Excluded = true;
-
-                        layer.AddEntity(entity);
-                        screen.AddEntity(entity, true);
-                        SelectEntity(entity);
-
-                        App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
-
-                        count--;
-                        task.Update($"{count}/{maxCount}");
                     }
-                });
-            };
+
+                    if (layerAsset == null || owner == null || parent == null || layer == null)
+                        return;
+
+                    string prefabName = asset.Name;
+
+                    var prefabObj = CreateEntityData(typeof(ReferenceObjectData), layerAsset) as ReferenceObjectData;
+
+                    layerAsset.AddObject(prefabObj);
+
+                    var entity = new ReferenceObject(prefabObj, parent, world, CreateRef(prefabName, layerAsset));
+                    if (parent is WorldPartReferenceObject obj)
+                    {
+                        obj.AddEntity(entity);
+                    }
+
+                    var originalOwner = entity.Owner;
+                    entity.SetDefaultValues();
+                    entity.SetTransform(transform, true);
+                    entity.SetOwner(originalOwner);
+
+                    prefabObj.LightmapResolutionScale = 1;
+                    prefabObj.CastSunShadowEnable = true;
+                    prefabObj.CastReflectionEnable = true;
+                    prefabObj.CastEnvmapEnable = true;
+
+                    layer.AddEntity(entity);
+                    screen.AddEntity(entity, true);
+                    SelectEntity(entity);
+
+                    App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
+
+                    count--;
+                    task.Update($"{count}/{maxCount}");
+                }
+            });
         }
 
         private object CreateEntityData(Type entityDataType, EbxAsset asset)

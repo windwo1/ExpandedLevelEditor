@@ -1,24 +1,22 @@
-﻿using Frosty.Core.Screens;
+﻿using Frosty.Core;
+using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using Frosty.Core.Viewport.DXUT;
+using Frosty.Core.Windows;
+using FrostySdk;
 using LevelEditorPlugin.Entities;
+using LevelEditorPlugin.Library.Image;
 using LevelEditorPlugin.Managers;
 using LevelEditorPlugin.Render;
+using LevelEditorPlugin.Render.Proxies;
 using SharpDX;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using D3D11 = SharpDX.Direct3D11;
-using FrostySdk;
-using LevelEditorPlugin.Render.Proxies;
-using Frosty.Core.Windows;
-using System.Windows;
-using System.Runtime.InteropServices;
 using System.IO;
-using LevelEditorPlugin.Library.Image;
-using Frosty.Core;
+using System.Linq;
+using System.Windows;
+using D3D11 = SharpDX.Direct3D11;
 using Key = System.Windows.Input.Key;
-using Frosty.Controls;
 
 namespace LevelEditorPlugin.Screens
 {
@@ -140,6 +138,7 @@ namespace LevelEditorPlugin.Screens
 
     public class Gizmo
     {
+        public bool IsMoving => moved;
         public bool IsVisible { get; set; }
         public Matrix Transform
         {
@@ -154,6 +153,8 @@ namespace LevelEditorPlugin.Screens
         }
         public BoundingBox BoundingBox { get; protected set; }
 
+        protected bool moved;
+
         protected ObjRenderable meshData;
         protected string meshFilename;
 
@@ -166,7 +167,7 @@ namespace LevelEditorPlugin.Screens
 
         public void CreateRenderProxy(RenderCreateState state)
         {
-            meshData = LoadedMeshManager.Instance.LoadMesh(state, "TranslateGizmo");
+            meshData = LoadedMeshManager.Instance.LoadMesh(state, meshFilename);
             renderProxy = new GizmoRenderProxy(state, meshData);
         }
 
@@ -317,7 +318,7 @@ namespace LevelEditorPlugin.Screens
                     Vector3 outPosition;
                     Plane axisPlane = new Plane(m.TranslationVector, Vector3.UnitX);
                     rayCast.Intersects(ref axisPlane, out outPosition);
-                    
+
                     m.TranslationVector = new Vector3(Transform.TranslationVector.X, Transform.TranslationVector.Y, outPosition.Z + offset);
                     Transform = m;
                 }
@@ -413,6 +414,7 @@ namespace LevelEditorPlugin.Screens
         private List<RenderProxy> proxies = new List<RenderProxy>();
 
         private TranslateGizmo translateGizmo;
+
         private BindableDepthTexture gizmoDepthTexture;
 
         public event EventHandler<SelectedEntityChangedEventArgs> SelectedEntityChanged;
@@ -429,7 +431,6 @@ namespace LevelEditorPlugin.Screens
             renderTasks.Enqueue(state => 
             {
                 translateGizmo.CreateRenderProxy(state);
-
             });
         }
 
@@ -440,12 +441,12 @@ namespace LevelEditorPlugin.Screens
                 List<RenderProxy> newProxies = new List<RenderProxy>();
                 entity.CreateRenderProxy(newProxies, state);
                 proxies.AddRange(newProxies);
+
+                if (selectEntity)
+                    SelectEntity(entity);
             });
 
             EntityAdded?.Invoke(this, new SelectedEntityAddedEventArgs(entity));
-
-            if (selectEntity)
-                SelectEntity(entity);
         }
 
         public void RemoveEntity(Entity entity)
@@ -629,12 +630,14 @@ namespace LevelEditorPlugin.Screens
 
         public void SelectEntity(Entity entity)
         {
+            App.Logger.Log(proxies.Count.ToString());
             ClearSelection();
 
             IEnumerable<RenderProxy> foundProxies = proxies.Where(rp => rp.OwnerEntity.Owner == entity);
             if (foundProxies.Count() == 0)
                 return;
 
+            App.Logger.Log("Setting gizmo");
             translateGizmo.Transform = Matrix.Translation((entity as ISpatialEntity).GetTransform().TranslationVector);
             translateGizmo.IsVisible = true;
 
@@ -829,7 +832,7 @@ namespace LevelEditorPlugin.Screens
                     if (hits.Count > 0)
                     {
                         hits.Sort((a, b) => { return a.Item2.CompareTo(b.Item2); });
-                        proxy = hits[0].Item1.RenderMesh as RenderProxy;                        
+                        proxy = hits[0].Item1.RenderMesh as RenderProxy;
                     }
 
                     Entity entityToSelect = (proxy != null)

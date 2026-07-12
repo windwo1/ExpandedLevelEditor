@@ -22,6 +22,8 @@ using System.Windows.Input;
 using Frosty.Core.Managers;
 using DisplayNameAttribute = FrostySdk.Attributes.DisplayNameAttribute;
 using PointerRef = FrostySdk.Ebx.PointerRef;
+using SharpDX;
+using Frosty.Core.Viewport;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -570,6 +572,38 @@ namespace LevelEditorPlugin.Editors
             if (m_dataModifiedCommand != null)
             {
                 m_dataModifiedCommand.Execute(new PropertyGridModifiedEventArgs(e, false));
+            }
+
+            // make sure its a transform
+            if (!e.Item.Parent.DisplayName.Contains("Transform") || e.Item.Parent.Value.GetType().Name != "LinearTransform")
+                return;
+
+            var t = e.Item.Parent.Value as FrostySdk.Ebx.LinearTransform;
+
+            float rx = MathUtil.DegreesToRadians(t.Rotation.x);
+            float ry = MathUtil.DegreesToRadians(t.Rotation.y);
+            float rz = MathUtil.DegreesToRadians(t.Rotation.z);
+
+            Matrix rotation = Matrix.RotationX(rx) * Matrix.RotationY(ry) * Matrix.RotationZ(rz);
+            Matrix scale = Matrix.Scaling(new Vector3(t.Scale.x, t.Scale.y, t.Scale.z));
+            Matrix trans = Matrix.Translation(new Vector3(t.trans.x, t.trans.y, t.trans.z));
+
+            Matrix matrix = scale * rotation * trans;
+
+            if (m_selectedEntity.Owner is ReferenceObject objEntity)
+            {
+                var layerAsset = LoadedAssetManager.Instance.GetEbxAsset(objEntity.Owner.FileGuid);
+                objEntity.SetTransform(matrix, true);
+                App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
+
+                objEntity.RequiresTransformUpdate = true;
+            }
+            else if (m_selectedEntity.Owner is StaticModelGroupElementEntity staticEntity)
+            {
+                staticEntity.SetTransform(matrix, true);
+                (staticEntity.Parent as StaticModelGroupEntity).UpdateData(staticEntity);
+
+                staticEntity.RequiresTransformUpdate = true;
             }
         }
 

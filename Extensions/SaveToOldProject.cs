@@ -37,7 +37,7 @@ namespace LevelEditorPlugin.Extensions
             {
                 writer.Write(Magic);
                 writer.Write(FormatVersion);
-                writer.WriteNullTerminatedString(currentProject.Profile);
+                writer.WriteNullTerminatedString(ProfilesLibrary.ProfileName);
                 writer.Write(DateTime.Now.Ticks);
                 writer.Write(DateTime.Now.Ticks);
                 writer.Write(currentProject.gameVersion);
