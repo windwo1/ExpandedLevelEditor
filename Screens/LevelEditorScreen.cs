@@ -630,14 +630,12 @@ namespace LevelEditorPlugin.Screens
 
         public void SelectEntity(Entity entity)
         {
-            App.Logger.Log(proxies.Count.ToString());
             ClearSelection();
 
             IEnumerable<RenderProxy> foundProxies = proxies.Where(rp => rp.OwnerEntity.Owner == entity);
             if (foundProxies.Count() == 0)
                 return;
 
-            App.Logger.Log("Setting gizmo");
             translateGizmo.Transform = Matrix.Translation((entity as ISpatialEntity).GetTransform().TranslationVector);
             translateGizmo.IsVisible = true;
 

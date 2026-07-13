@@ -53,11 +53,16 @@
                 </Button.Content>
             </Button>
 
-            <Border DockPanel.Dock="Right" Margin="5" BorderThickness="1" BorderBrush="{StaticResource ControlBackground}">
+            <StackPanel DockPanel.Dock="Right" Width="12" Margin="2,5,0,5">
+                <Button x:Name="incrementBtn" Height="15" FontFamily="Marlett" Content="5" FontSize="8" Click="IncrementBtn_Click"/>
+                <Button x:Name="decrementBtn" Height="15" FontFamily="Marlett" Content="6" FontSize="8" Click="DecrementBtn_Click"/>
+            </StackPanel>
+
+            <Border DockPanel.Dock="Right" Margin="0,5,0,5" BorderThickness="1" BorderBrush="{StaticResource ControlBackground}">
                 <TextBox x:Name="countText" TextChanged="CountText_TextChanged" Text="1" FontSize="16" MinWidth="25" Background="{StaticResource MenuItemBackground}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
             </Border>
 
-            <TextBlock Text="Count:" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource FontColor}"/>
+            <TextBlock Text="Count:" DockPanel.Dock="Right" Margin="5" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource FontColor}"/>
         </DockPanel>
     </Grid>
 </ctrl:FrostyDockableWindow>

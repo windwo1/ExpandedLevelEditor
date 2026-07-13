@@ -68,6 +68,18 @@ namespace LevelEditorPlugin.Windows
             SetCount();
         }
 
+        private void IncrementBtn_Click(object sender, RoutedEventArgs e)
+        {
+            count++;
+            SetTextToCount();
+        }
+
+        private void DecrementBtn_Click(object sender, RoutedEventArgs e)
+        {
+            count--;
+            SetTextToCount();
+        }
+
         private void SetCount()
         {
             try
@@ -79,6 +91,13 @@ namespace LevelEditorPlugin.Windows
 
             if (count > maxCount) countText.Text = maxCount.ToString();
             if (count < minCount) countText.Text = minCount.ToString();
+        }
+
+        private void SetTextToCount()
+        {
+            if (count > maxCount) count = maxCount;
+            if (count < minCount) count = minCount;
+            countText.Text = count.ToString();
         }
 
         private void Invalidate()
