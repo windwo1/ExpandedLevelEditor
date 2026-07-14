@@ -77,9 +77,6 @@ namespace LevelEditorPlugin.Editors
 
         private void EntityAddedFromScreen(object sender, Screens.SelectedEntityAddedEventArgs e)
         {
-            SelectedEntity = e.Entity;
-            SelectedEntityChanged(m_selectedEntity);
-
             UpdateEntityInstances();
         }
 

@@ -21,11 +21,16 @@
     <Grid Background="{StaticResource WindowBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="35"/>
+            <RowDefinition Height="35"/>
             <RowDefinition/>
             <RowDefinition Height="40"/>
         </Grid.RowDefinitions>
 
-        <DockPanel Background="{StaticResource ScrollbarBackground}">
+        <Border BorderThickness="2" BorderBrush="{StaticResource ListBackground}">
+            <TextBlock Text="Any objects added from here might require their bundles to be modified" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource FontColor}"/>
+        </Border>
+
+        <DockPanel Grid.Row="1" Background="{StaticResource ScrollbarBackground}">
             <TextBlock Text="Object Type:" VerticalAlignment="Center" Margin="5" Foreground="{StaticResource FontColor}"/>
 
             <ComboBox x:Name="objTypeComboBox" Width="120" HorizontalAlignment="Left" Margin="5" SelectionChanged="ObjTypeComboBox_SelectionChanged">
@@ -36,11 +41,11 @@
             <TextBlock x:Name="tbType" FontSize="12" VerticalAlignment="Center" Opacity="0.5" Foreground="{StaticResource FontColor}"/>
         </DockPanel>
 
-        <Border Grid.Row="1" BorderThickness="2">
+        <Border Grid.Row="2" BorderThickness="2">
             <core:FrostyDataExplorer x:Name="dataExplorer" SelectedAssetDoubleClick="DataExplorer_SelectedAssetDoubleClick"/>
         </Border>
 
-        <DockPanel Grid.Row="2">
+        <DockPanel Grid.Row="3">
             <Button x:Name="cancelBtn" Margin="5" Width="75" HorizontalAlignment="Left" Click="CancelBtn_Click">
                 <Button.Content>
                     <TextBlock Text="Cancel" Foreground="{StaticResource FontColor}"/>

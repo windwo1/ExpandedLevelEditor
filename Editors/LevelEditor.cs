@@ -15,6 +15,7 @@ using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
 using LevelEditorPlugin.Screens;
 using LevelEditorPlugin.Windows;
+using Microsoft.CSharp.RuntimeBinder;
 using SharpDX;
 using SharpDX.Direct2D1;
 using System;
@@ -293,7 +294,7 @@ namespace LevelEditorPlugin.Editors
             {
                 logger.LogWarning("Failed to create {0} assets, their AssetData was null! This shouldn't affect anything too much.", LoadedAssetManager.Instance.FailedAssets);
             }
-            
+
             logger.Log($"Level loaded in {timer.Elapsed}");
 
             DockManager.AddItemOnLoad(new LayersViewModel(this));
@@ -340,7 +341,7 @@ namespace LevelEditorPlugin.Editors
                 var guid = refObj.Data.Blueprint.External.FileGuid;
                 var transform = refObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform);
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, false);
                 return;
             }
             else if (selectedEntity is StaticModelGroupElementEntity staticObj)
@@ -348,14 +349,14 @@ namespace LevelEditorPlugin.Editors
                 var guid = staticObj.Data.Blueprint.External.FileGuid;
                 var transform = staticObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform);
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, false);
                 return;
             }
 
             App.Logger.LogWarning("Cannot duplicate entity of type " + selectedEntity.GetType().Name);
         }
 
-        private void AddEntity(EbxAssetEntry asset, int count, Matrix transform)
+        private void AddEntity(EbxAssetEntry asset, int count, Matrix transform, bool manageBundles = true)
         {
             int maxCount = count;
 
@@ -377,24 +378,27 @@ namespace LevelEditorPlugin.Editors
                         if (layerAsset != null && owner != null && parent != null && layer != null)
                             break;
 
-                        if (item.LayerName != "static_instances")
-                        {
-                            var entities = new List<Entities.Entity>();
-                            item.CollectEntities(entities);
+                        if (item.LayerName == "static_instances" || !item.IsVisible)
+                            continue;
 
-                            foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
-                            {
-                                layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
-                                owner = layerEntity.Owner;
-                                parent = layerEntity.Parent;
-                                layer = item;
-                                break;
-                            }
+                        var entities = new List<Entities.Entity>();
+                        item.CollectEntities(entities);
+
+                        foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
+                        {
+                            layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
+                            owner = layerEntity.Owner;
+                            parent = layerEntity.Parent;
+                            layer = item;
+                            break;
                         }
                     }
 
                     if (layerAsset == null || owner == null || parent == null || layer == null)
+                    {
+                        App.Logger.LogError("Failed to find a layer to add to");
                         return;
+                    }
 
                     string prefabName = asset.Name;
 
@@ -413,19 +417,40 @@ namespace LevelEditorPlugin.Editors
                     entity.SetTransform(transform, true);
                     entity.SetOwner(originalOwner);
 
+#if !GW1
                     prefabObj.LightmapResolutionScale = 1;
+#endif
+#if !MASS_EFFECT && !SWBF2
                     prefabObj.CastSunShadowEnable = true;
                     prefabObj.CastReflectionEnable = true;
+#if !GW1
                     prefabObj.CastEnvmapEnable = true;
+#endif
+#endif
 
                     layer.AddEntity(entity);
                     screen.AddEntity(entity, true);
-                    SelectEntity(entity);
+                    SelectEntity(entity, false);
 
-                    App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
+                    try
+                    {
+                        // if flags aren't 1, it won't show up in game
+                        ((dynamic)layerAsset.RootObject).Flags = 1; 
+                    }
+                    catch (RuntimeBinderException) { }
+
+                    var layerEntry = App.AssetManager.GetEbxEntry(layerAsset.FileGuid);
+
+                    if (manageBundles)
+                        ManageBundles(asset, layerEntry, maxRecursions: 15);
+
+                    App.AssetManager.ModifyEbx(layerEntry.Name, layerAsset);
+
+                    // dont need to manage bundles on each iteration
+                    manageBundles = false;
 
                     count--;
-                    task.Update($"{count}/{maxCount}");
+                    task.Update($"{maxCount - count}/{maxCount}");
                 }
             });
         }
@@ -486,6 +511,27 @@ namespace LevelEditorPlugin.Editors
             }
 
             App.Logger.LogError($"Failed to delete entity of type {entity.Owner.GetType().Name}. Can only delete static models & prefabs for now.");
+        }
+
+        private void ManageBundles(EbxAssetEntry asset, EbxAssetEntry addedAsset, int maxRecursions, List<EbxAssetEntry> visited = null)
+        {
+            // a very minimal bundle manager, wont manage network registries or res files or mesh variation dbs or anything
+            // use a proper bundle manager plugin on your added objects if they crash the game
+
+            if (visited == null)
+                visited = new List<EbxAssetEntry>();
+
+            if (asset == null || visited.Contains(asset) || maxRecursions <= 0)
+                return;
+
+            //App.Logger.Log("Managed bundles for: " + asset.Name);
+            asset.AddedBundles.AddRange(addedAsset.EnumerateBundles());
+            visited.Add(asset);
+
+            foreach (var guid in asset.EnumerateDependencies())
+            {
+                ManageBundles(App.AssetManager.GetEbxEntry(guid), addedAsset, maxRecursions - 1, visited);
+            }
         }
 
         private PointerRef CreateRef(string assetPath, EbxAsset asset)

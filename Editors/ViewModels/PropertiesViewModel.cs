@@ -605,6 +605,10 @@ namespace LevelEditorPlugin.Editors
 
                 staticEntity.RequiresTransformUpdate = true;
             }
+            else
+            {
+                (m_selectedEntity.Owner as ISpatialEntity).SetTransform(matrix, true);
+            }
         }
 
         #region -- INotifyPropertyChanged --

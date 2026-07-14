@@ -5,8 +5,8 @@ A modified version of the Level Editor plugin for Frosty Editor (1.0.7) for both
 ## Editing
 
 With this fork of the Level Editor, you'll be able to now:
-- Modify static models, maps are mostly made up of these, and they are now editable!
-- Add objects to a map
+- Modify static models, maps are mostly made up of these, and they are now editable
+- Add objects to a map (make sure you use a bundle manager plugin if they are crashing the game)
 - Delete objects from a map
 - Duplicate a selected object
 - Modify an object's transform from the Properties panel, so you're no longer limited to the Translate gizmo

@@ -134,39 +134,41 @@ namespace LevelEditorPlugin.Resources
 
             public override void Serialize(NativeReader reader, HkxHeader header)
             {
-#if GW1
-                if (header.Bits == 64)
+                if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesGardenWarfare)
                 {
-                    reader.BaseStream.Seek(17, SeekOrigin.Current);
-                    DispatchType = reader.ReadByte();
-                    BitsPerKey = reader.ReadByte();
-                    ShapeInfoCodecType = reader.ReadByte();
-                    reader.BaseStream.Seek(4, SeekOrigin.Current);
-                    UserData = reader.ReadUInt();
-                    reader.BaseStream.Seek(4, SeekOrigin.Current);
-                    BvTreeType = reader.ReadByte();
-                    reader.BaseStream.Seek(15, SeekOrigin.Current);
-                    NumBitsForChildShapeKey = reader.ReadByte();
-                    reader.BaseStream.Seek(15, SeekOrigin.Current);
-                    int NumInstances64 = reader.ReadInt();
-                    reader.BaseStream.Seek(52, SeekOrigin.Current);
-
-                    Tree = new hkpTree();
-                    Tree.Serialize(reader, true);
-
-                    reader.BaseStream.Seek(16, SeekOrigin.Current);
-                    Instances = new List<hkpInstance>();
-
-                    for (int i = 0; i < NumInstances64; i++)
+                    if (header.Bits == 64)
                     {
-                        hkpInstance CurInstance = new hkpInstance();
-                        CurInstance.Serialize(reader);
+                        reader.BaseStream.Seek(17, SeekOrigin.Current);
+                        DispatchType = reader.ReadByte();
+                        BitsPerKey = reader.ReadByte();
+                        ShapeInfoCodecType = reader.ReadByte();
+                        reader.BaseStream.Seek(4, SeekOrigin.Current);
+                        UserData = reader.ReadUInt();
+                        reader.BaseStream.Seek(4, SeekOrigin.Current);
+                        BvTreeType = reader.ReadByte();
+                        reader.BaseStream.Seek(15, SeekOrigin.Current);
+                        NumBitsForChildShapeKey = reader.ReadByte();
+                        reader.BaseStream.Seek(15, SeekOrigin.Current);
+                        int NumInstances64 = reader.ReadInt();
+                        reader.BaseStream.Seek(52, SeekOrigin.Current);
+
+                        Tree = new hkpTree();
+                        Tree.Serialize(reader, true);
+
                         reader.BaseStream.Seek(16, SeekOrigin.Current);
-                        Instances.Add(CurInstance);
+                        Instances = new List<hkpInstance>();
+
+                        for (int i = 0; i < NumInstances64; i++)
+                        {
+                            hkpInstance CurInstance = new hkpInstance();
+                            CurInstance.Serialize(reader);
+                            reader.BaseStream.Seek(16, SeekOrigin.Current);
+                            Instances.Add(CurInstance);
+                        }
+                        return;
                     }
-                    return;
                 }
-#endif
+
                 reader.BaseStream.Seek(9, SeekOrigin.Current);
                 DispatchType = reader.ReadByte();
                 BitsPerKey = reader.ReadByte();
@@ -1032,8 +1034,43 @@ namespace LevelEditorPlugin.Resources
                 //    }
                 //}
 
-                // write 64bit
+                if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesGardenWarfare)
                 {
+                    var shape = inst64.Objects.OfType<Hkx.hkpStaticCompoundShape>().FirstOrDefault();
+                    if (shape != null)
+                    {
+                        for (int i = 0; i < shape.Instances.Count; i++)
+                        {
+                            if (!modifiedData.GetTransform(i, out var transform))
+                                continue;
+
+                            Vector3 scale;
+                            Vector3 translation;
+                            Quaternion rotation;
+
+                            transform.Decompose(out scale, out rotation, out translation);
+
+                            writer.Position = shape.Instances[i].DataOffset;
+
+                            writer.Write(translation.X);
+                            writer.Write(translation.Y);
+                            writer.Write(translation.Z);
+                            writer.BaseStream.Position += 4;
+
+                            writer.Write(rotation.X);
+                            writer.Write(rotation.Y);
+                            writer.Write(rotation.Z);
+                            writer.Write(rotation.W);
+
+                            writer.Write(scale.X);
+                            writer.Write(scale.Y);
+                            writer.Write(scale.Z);
+                        }
+                    }
+                }
+                else
+                {
+                    // write 64bit
                     foreach (hkBaseClass obj in (inst64.Objects[0] as Hkx.HavokPhysicsContainer).Objects)
                     {
                         // reset the static compound shape data tree, this is a hack and is sure to come with some
@@ -1115,60 +1152,66 @@ namespace LevelEditorPlugin.Resources
                 return outTransform;
 
             Matrix preScale = Matrix.Identity;
-#if GW1
-            hkpStaticCompoundShape shape = null;
-
-            foreach (var obj in inst64.Objects)
+            if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesGardenWarfare)
             {
-                if (obj is hkpStaticCompoundShape match)
+                hkpStaticCompoundShape shape = null;
+
+                foreach (var obj in inst64.Objects)
                 {
-                    shape = match;
-                    break;
+                    if (obj is hkpStaticCompoundShape match)
+                    {
+                        shape = match;
+                        break;
+                    }
                 }
+
+                if (shape == null)
+                    return Matrix.Identity;
+
+                var instance = shape.Instances[index];
+
+                var quaternion = new Quaternion(instance.Rotation.X, instance.Rotation.Y, instance.Rotation.Z, instance.Rotation.W);
+
+                Matrix transform =
+                    Matrix.Scaling(instance.Scale) *
+                    Matrix.RotationQuaternion(quaternion) *
+                    Matrix.Translation(instance.Translation);
+
+                return transform;
             }
-
-            if (shape == null)
-                return Matrix.Identity;
-
-            var instance = shape.Instances[index];
-
-            var quaternion = new Quaternion(instance.Rotation.X, instance.Rotation.Y, instance.Rotation.Z, instance.Rotation.W);
-
-            Matrix transform = 
-                Matrix.Scaling(instance.Scale) *
-                Matrix.RotationQuaternion(quaternion) *
-                Matrix.Translation(instance.Translation);
-
-            return transform;
-#else
-            hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[(int)index];
-            hknpShape shape = instance.shape as Hkx.hknpShape;
-
-            if (shape != null && (shape.unknown & 0x10) != 0)
+            else
             {
-                preScale = Matrix.Scaling(-1, 1, 1);
-            }
+                hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[(int)index];
+                hknpShape shape = instance.shape as Hkx.hknpShape;
 
-            return
-                preScale *
-                Matrix.Scaling(instance.Scale) *
-                instance.Transform;
+                if (shape != null && (shape.unknown & 0x10) != 0)
+                {
+                    preScale = Matrix.Scaling(-1, 1, 1);
+                }
+
+                return
+                    preScale *
+                    Matrix.Scaling(instance.Scale) *
+                    instance.Transform;
                 //instance.Rotation * 
                 //Matrix.Translation(instance.Translation);
-#endif
+            }
         }
 
         public string GetPhysicsShapeType(int index)
         {
-#if GW1
-            return "hkpStaticCompoundShape";
-#else
-            string placeholderName = "hknpConvexPolytopeShape";
-            hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[index];
+            if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesGardenWarfare)
+            {
+                return "hkpStaticCompoundShape";
+            }
+            else
+            {
+                string placeholderName = "hknpConvexPolytopeShape";
+                hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[index];
 
-            // for some reason instance.shape when loading Zomburbia (GW2) is null, so it just uses a placeholder name
-            return instance.shape == null ? placeholderName : instance.shape.GetType().Name;
-#endif
+                // for some reason instance.shape when loading Zomburbia (GW2) is null, so it just uses a placeholder name
+                return instance.shape == null ? placeholderName : instance.shape.GetType().Name;
+            }
         }
 
         public override ModifiedResource SaveModifiedResource()
