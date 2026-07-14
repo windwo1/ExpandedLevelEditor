@@ -442,7 +442,7 @@ namespace LevelEditorPlugin.Editors
                     var layerEntry = App.AssetManager.GetEbxEntry(layerAsset.FileGuid);
 
                     if (manageBundles)
-                        ManageBundles(asset, layerEntry, maxRecursions: 15);
+                        ManageBundles(asset, layerEntry, maxRecursions: 5);
 
                     App.AssetManager.ModifyEbx(layerEntry.Name, layerAsset);
 
