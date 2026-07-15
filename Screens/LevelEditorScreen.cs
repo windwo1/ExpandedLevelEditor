@@ -453,7 +453,7 @@ namespace LevelEditorPlugin.Screens
         {
             renderTasks.Enqueue((RenderCreateState state) =>
             {
-                proxies.RemoveAll(proxy => proxy.OwnerEntity == entity);
+                proxies.RemoveAll(proxy => proxy.OwnerEntity.Owner == entity);
             });
 
             EntityRemoved?.Invoke(this, EventArgs.Empty);
@@ -468,7 +468,7 @@ namespace LevelEditorPlugin.Screens
             {
                 if (selectedProxies.Count > 0 && selectedProxies[0].OwnerEntity.RequiresTransformUpdate)
                 {
-                    translateGizmo.Transform = Matrix.Translation((selectedProxies[0].OwnerEntity as ISpatialEntity).GetTransform().TranslationVector);
+                    translateGizmo.Transform = Matrix.Translation((selectedProxies[0].OwnerEntity.Owner as ISpatialEntity).GetTransform().TranslationVector);
                 }
             }
 
@@ -645,6 +645,8 @@ namespace LevelEditorPlugin.Screens
                 foreach (RenderProxy proxy in selectedProxies)
                     proxy.SetSelected(state, true);
             });
+
+            SelectedEntityChanged?.Invoke(this, new SelectedEntityChangedEventArgs(entity));
         }
 
         public void CenterOnSelection()

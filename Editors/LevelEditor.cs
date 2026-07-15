@@ -341,7 +341,7 @@ namespace LevelEditorPlugin.Editors
                 var guid = refObj.Data.Blueprint.External.FileGuid;
                 var transform = refObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, false);
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, refObj.Layer);
                 return;
             }
             else if (selectedEntity is StaticModelGroupElementEntity staticObj)
@@ -349,14 +349,14 @@ namespace LevelEditorPlugin.Editors
                 var guid = staticObj.Data.Blueprint.External.FileGuid;
                 var transform = staticObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, false);
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, staticObj.Layer, staticObj.Parent.Parent);
                 return;
             }
 
             App.Logger.LogWarning("Cannot duplicate entity of type " + selectedEntity.GetType().Name);
         }
 
-        private void AddEntity(EbxAssetEntry asset, int count, Matrix transform, bool manageBundles = true)
+        private void AddEntity(EbxAssetEntry asset, int count, Matrix transform, SceneLayer addedLayer = null, Entities.Entity parentOverride = null)
         {
             int maxCount = count;
 
@@ -369,30 +369,49 @@ namespace LevelEditorPlugin.Editors
                     Entities.Entity parent = null;
                     SceneLayer layer = null;
 
-                    var layers = new List<SceneLayer>();
-                    RootLayer.CollectLayers(layers);
-
-                    // get any layer of the level so we can add to it
-                    foreach (var item in layers)
+                    if (addedLayer != null)
                     {
-                        if (layerAsset != null && owner != null && parent != null && layer != null)
-                            break;
-
-                        if (item.LayerName == "static_instances" || !item.IsVisible)
-                            continue;
-
                         var entities = new List<Entities.Entity>();
-                        item.CollectEntities(entities);
+                        addedLayer.CollectEntities(entities);
 
-                        foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
+                        if (entities.Count != 0)
                         {
-                            layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
-                            owner = layerEntity.Owner;
-                            parent = layerEntity.Parent;
-                            layer = item;
-                            break;
+                            layerAsset = LoadedAssetManager.Instance.GetEbxAsset(entities[0].Owner.FileGuid);
+                            owner = entities[0].Owner;
+                            parent = entities[0].Parent;
+                            layer = addedLayer;
                         }
                     }
+                    else
+                    {
+                        var layers = new List<SceneLayer>();
+                        RootLayer.CollectLayers(layers);
+
+                        // get any layer of the level so we can add to it
+                        foreach (var item in layers)
+                        {
+                            if (layerAsset != null && owner != null && parent != null && layer != null)
+                                break;
+
+                            if (item.LayerName == "static_instances" || !item.IsVisible)
+                                continue;
+
+                            var entities = new List<Entities.Entity>();
+                            item.CollectEntities(entities);
+
+                            foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
+                            {
+                                layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
+                                owner = layerEntity.Owner;
+                                parent = layerEntity.Parent;
+                                layer = item;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (parentOverride != null)
+                        parent = parentOverride;
 
                     if (layerAsset == null || owner == null || parent == null || layer == null)
                     {
@@ -410,6 +429,10 @@ namespace LevelEditorPlugin.Editors
                     if (parent is WorldPartReferenceObject obj)
                     {
                         obj.AddEntity(entity);
+                    }
+                    else if (parent is SubWorldReferenceObject subWorld)
+                    {
+                        subWorld.AddEntity(entity);
                     }
 
                     var originalOwner = entity.Owner;
@@ -430,7 +453,6 @@ namespace LevelEditorPlugin.Editors
 
                     layer.AddEntity(entity);
                     screen.AddEntity(entity, true);
-                    SelectEntity(entity, false);
 
                     try
                     {
@@ -441,13 +463,7 @@ namespace LevelEditorPlugin.Editors
 
                     var layerEntry = App.AssetManager.GetEbxEntry(layerAsset.FileGuid);
 
-                    if (manageBundles)
-                        ManageBundles(asset, layerEntry, maxRecursions: 5);
-
                     App.AssetManager.ModifyEbx(layerEntry.Name, layerAsset);
-
-                    // dont need to manage bundles on each iteration
-                    manageBundles = false;
 
                     count--;
                     task.Update($"{maxCount - count}/{maxCount}");
@@ -496,6 +512,10 @@ namespace LevelEditorPlugin.Editors
                 {
                     worldPart.RemoveEntity(objEntity);
                 }
+                else if (entity.Owner.Parent is SubWorldReferenceObject subWorld)
+                {
+                    subWorld.RemoveEntity(objEntity);
+                }
 
                 App.AssetManager.ModifyEbx(App.AssetManager.GetEbxEntry(layerAsset.FileGuid).Name, layerAsset);
                 removed = true;
@@ -503,35 +523,13 @@ namespace LevelEditorPlugin.Editors
 
             if (removed)
             {
-                entity.Owner.Layer.RemoveEntity(entity);
-
-                screen.RemoveEntity(entity);
+                entity.Owner.Layer.RemoveEntity(entity.Owner);
+                screen.RemoveEntity(entity.Owner);
                 ClearSelection();
                 return;
             }
 
             App.Logger.LogError($"Failed to delete entity of type {entity.Owner.GetType().Name}. Can only delete static models & prefabs for now.");
-        }
-
-        private void ManageBundles(EbxAssetEntry asset, EbxAssetEntry addedAsset, int maxRecursions, List<EbxAssetEntry> visited = null)
-        {
-            // a very minimal bundle manager, wont manage network registries or res files or mesh variation dbs or anything
-            // use a proper bundle manager plugin on your added objects if they crash the game
-
-            if (visited == null)
-                visited = new List<EbxAssetEntry>();
-
-            if (asset == null || visited.Contains(asset) || maxRecursions <= 0)
-                return;
-
-            //App.Logger.Log("Managed bundles for: " + asset.Name);
-            asset.AddedBundles.AddRange(addedAsset.EnumerateBundles());
-            visited.Add(asset);
-
-            foreach (var guid in asset.EnumerateDependencies())
-            {
-                ManageBundles(App.AssetManager.GetEbxEntry(guid), addedAsset, maxRecursions - 1, visited);
-            }
         }
 
         private PointerRef CreateRef(string assetPath, EbxAsset asset)

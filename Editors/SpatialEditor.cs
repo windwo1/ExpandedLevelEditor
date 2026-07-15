@@ -77,8 +77,6 @@ namespace LevelEditorPlugin.Editors
 
         protected System.Windows.Shapes.Rectangle thumbnailBorder;
 
-        private bool select;
-
         public event EventHandler<SelectedEntityChangedEventArgs> SelectedEntityChanged;
         public event EventHandler<SelectedLayerChangedEventArgs> SelectedLayerChanged;
 
@@ -91,20 +89,6 @@ namespace LevelEditorPlugin.Editors
             : base(inLogger)
         {
             dockManager = new DockManager(this);
-        }
-
-        public void SelectEntity(Entities.Entity newSelection, bool screenSelect)
-        {
-            if (!screenSelect)
-            {
-                select = false;
-                SelectEntity(newSelection);
-                select = true;
-            }
-            else
-            {
-                SelectEntity(newSelection);
-            }
         }
 
         public void SelectEntity(Entities.Entity newSelection)

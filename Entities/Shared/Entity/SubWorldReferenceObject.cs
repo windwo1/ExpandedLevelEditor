@@ -1,4 +1,5 @@
-﻿using LevelEditorPlugin.Editors;
+﻿using FrostySdk.Ebx;
+using LevelEditorPlugin.Editors;
 using LevelEditorPlugin.Managers;
 using System;
 using System.Collections.Generic;
@@ -65,6 +66,18 @@ namespace LevelEditorPlugin.Entities
 
             NetworkRegistry = LoadedAssetManager.Instance.LoadAsset<Assets.NetworkRegistryAsset>(networkRegistryName);
             MeshVariationDatabase = LoadedAssetManager.Instance.LoadAsset<Assets.MeshVariationDatabase>(meshVariationName);
+        }
+
+        public override void AddEntity(Entity inEntity)
+        {
+            inEntity.SetParent(this);
+            (Blueprint.Data).Objects.Add(new PointerRef(inEntity.GetRawData()));
+            entities.Add(inEntity);
+        }
+
+        public override void RemoveEntity(Entity inEntity)
+        {
+            (Blueprint.Data).Objects.Remove(new PointerRef(inEntity.GetRawData()));
         }
 
         public Layers.SceneLayer GetLayer()
