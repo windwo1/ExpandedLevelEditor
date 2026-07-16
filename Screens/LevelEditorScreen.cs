@@ -670,6 +670,19 @@ namespace LevelEditorPlugin.Screens
             (camera as FirstPersonCamera).SetViewParams(offset * new Vector3(-1, 1, 1), center * new Vector3(-1, 1, 1));
         }
 
+        protected override void RenderMeshes(MeshRenderPath renderPath, List<MeshRenderInstance> meshList)
+        {
+            if (renderPath == MeshRenderPath.Selection && selectedProxies.Count > 0)
+            {
+                List<MeshRenderInstance> selected = selectedProxies.Select(p => p.GetInstance(p.CurrentDistanceToCamera)).ToList();
+
+                base.RenderMeshes(renderPath, selected);
+                return;
+            }
+
+            base.RenderMeshes(renderPath, meshList);
+        }
+
         public override List<MeshRenderInstance> CollectMeshInstances()
         {
             LevelEditorCamera currentCamera = (LevelEditorCamera)camera;
@@ -928,7 +941,7 @@ namespace LevelEditorPlugin.Screens
             Viewport.Context.InputAssembler.InputLayout = null;
             Viewport.Context.VertexShader.Set(vsFullscreenQuad);
             Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
-            Viewport.Context.PixelShader.Set(psResolve);
+            Viewport.Context.PixelShader.Set(psSelectionOutline);
             Viewport.Context.PixelShader.SetShaderResources(0, new D3D11.ShaderResourceView[]
             {
                 finalColorTexture.SRV,

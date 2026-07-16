@@ -131,9 +131,9 @@ namespace LevelEditorPlugin.Render.Proxies
                 permutation.SetState(context, renderPath);
                 context.PixelShader.SetShaderResources(1, pixelTextures.ToArray());
                 context.PixelShader.SetConstantBuffer(2, pixelParameters);
-
-                renderData.GetLod(lodIndex).Render(context, renderPath);
             }
+
+            renderData.GetLod(lodIndex).Render(context, renderPath);
         }
 
         public override bool ShouldRender(float distToCamera, float screenSize)
@@ -161,6 +161,17 @@ namespace LevelEditorPlugin.Render.Proxies
             meshBbox.Transform(Transform);
 
             BoundingBox = meshBbox.GetBoundingBox();
+        }
+
+        public override void SetSelected(RenderCreateState state, bool newSelected)
+        {
+            foreach (var lod in renderData.LODs)
+            {
+                foreach (var section in lod.Sections)
+                {
+                    section.IsSelected = newSelected;
+                }
+            }
         }
 
         public override void Dispose()
