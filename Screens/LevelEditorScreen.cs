@@ -791,7 +791,7 @@ namespace LevelEditorPlugin.Screens
                 }
             }
 
-            base.MouseDown(x, y, button);
+            base.MouseDown(x, y, button == MouseButton.Left ? MouseButton.None : button);
         }
 
         public override void MouseUp(int x, int y, MouseButton button)

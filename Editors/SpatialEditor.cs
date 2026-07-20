@@ -12,10 +12,10 @@ using FrostySdk.Resources;
 using LevelEditorPlugin.Controls;
 using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
+using LevelEditorPlugin.Exporters;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Screens;
-using MeshSetPlugin;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -238,6 +238,9 @@ namespace LevelEditorPlugin.Editors
             }
         }
 
+        // need to add a way for this to be customizable
+        private const int exportedLod = 0;
+
         public void ExportLevel()
         {
             List<SceneLayer> layers = new List<SceneLayer>();
@@ -270,7 +273,6 @@ namespace LevelEditorPlugin.Editors
 
             FrostyTaskWindow.Show("Exporting " + rootLayerName, "", (task) =>
             {
-                #region Meshes
                 uint totalCount = (uint)layers.Count();
 
                 uint smiCount = 0; //Static Model Instances
@@ -319,7 +321,6 @@ namespace LevelEditorPlugin.Editors
 
                 xmlWriter.Dispose();
                 xmlWriterMaterials.Dispose();
-                #endregion
 
                 foreach (Entities.Entity entity in entityList)
                 {
@@ -365,9 +366,7 @@ namespace LevelEditorPlugin.Editors
             });
         }
 
-        // this is a seperate method because it was gonna recursively export spatial prefabs but it got messy
-        // if anyone else wants to try that i have left it like this so it's easier
-        private void ExportObjects(List<object> objects, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh, ref uint smiCount, ref uint objCount, ref uint spatialCount, List<string> spatialPaths = null)
+        private void ExportObjects(List<object> objects, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh, ref uint smiCount, ref uint objCount, ref uint spatialCount, LinearTransform offset = null)
         {
             string basePath = Path.Combine(Environment.CurrentDirectory, "Levels", RootLayer.LayerName);
 
@@ -412,18 +411,15 @@ namespace LevelEditorPlugin.Editors
                     //App.Logger.Log("{0}: {1}", objMeshAsset.DisplayName, smiTransform.ToString());
 
                     ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
+                    var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
 
-                    exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
+                    exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportedLod, "binary", meshSet);
 
                     MeshMaterialCollection materials = new MeshMaterialCollection(
                         App.AssetManager.GetEbx(objMeshAsset),
                         new PointerRef()
                     );
 
-                    ulong resRid = meshAsset.MeshSetResource;
-                    ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
-
-                    var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
                     ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
                     WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
 
@@ -431,6 +427,13 @@ namespace LevelEditorPlugin.Editors
                 }
 
                 LinearTransform transform = smiData.Transform;
+                if (offset != null)
+                {
+                    transform = Entities.Entity.MakeLinearTransform(
+                        SharpDXUtils.FromLinearTransform(transform) * 
+                        SharpDXUtils.FromLinearTransform(offset)
+                        );
+                }
 
                 xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
                 WriteTransformToXML(xmlWriter, transform);
@@ -479,6 +482,15 @@ namespace LevelEditorPlugin.Editors
                             task.Update("Object " + objMeshAsset.DisplayName);
 
                             LinearTransform blueprintTransform = data.BlueprintTransform;
+
+                            if (offset != null)
+                            {
+                                blueprintTransform = Entities.Entity.MakeLinearTransform(
+                                    SharpDXUtils.FromLinearTransform(blueprintTransform) *
+                                    SharpDXUtils.FromLinearTransform(offset)
+                                    );
+                            }
+
                             xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
                             WriteTransformToXML(xmlWriter, blueprintTransform);
 
@@ -490,18 +502,15 @@ namespace LevelEditorPlugin.Editors
                             if (!hasExportedMesh.TryGetValue(path, out var _))
                             {
                                 ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
+                                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
 
-                                exporter.ExportFBX(meshAsset, path, "2017", "Meters", false, true, string.Empty, "binary", App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res));
+                                exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportedLod, "binary", meshSet);
 
                                 MeshMaterialCollection materials = new MeshMaterialCollection(
                                     App.AssetManager.GetEbx(objMeshAsset),
                                     new PointerRef()
                                 );
 
-                                ulong resRid = meshAsset.MeshSetResource;
-                                ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
-
-                                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(rEntry);
                                 ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
                                 WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
 
@@ -516,24 +525,19 @@ namespace LevelEditorPlugin.Editors
                 }
             }
 
-#if GW1
-            foreach (object entity in objects.Where(e => e is SpatialReferenceObject || e is SpatialReferenceObjectData))
-#else
-            foreach (object entity in objects.Where(e => e is SpatialPrefabReferenceObject || e is SpatialPrefabReferenceObjectData))
-#endif
+            foreach (object entity in objects.Where(e => e is ReferenceObject || e is ReferenceObjectData))
             {
-                xmlWriter.WriteStartElement("SpatialPrefabInstance");
-
-#if GW1
-                SpatialReferenceObjectData data = (entity as SpatialReferenceObject)?.Data ?? entity as SpatialReferenceObjectData;
-#else
-                SpatialPrefabReferenceObjectData data = (entity as SpatialPrefabReferenceObject)?.Data ?? entity as SpatialPrefabReferenceObjectData;
-#endif
+                ReferenceObjectData data = (entity as ReferenceObject)?.Data ?? entity as ReferenceObjectData;
 
                 EbxAssetEntry objBlueprint = App.AssetManager.GetEbxEntry(data.Blueprint.External.FileGuid);
 
                 if (objBlueprint != null)
                 {
+                    if (objBlueprint.Type != "SpatialPrefabBlueprint" && objBlueprint.Type != "ObjectBlueprint")
+                        continue;
+
+                    xmlWriter.WriteStartElement("SpatialPrefabInstance");
+
                     EbxAsset asset = App.AssetManager.GetEbx(objBlueprint);
                     dynamic rootObject = asset.RootObject;
 
@@ -541,9 +545,20 @@ namespace LevelEditorPlugin.Editors
 
                     LinearTransform blueprintTransform = data.BlueprintTransform;
 
+                    if (offset != null)
+                    {
+                        blueprintTransform = Entities.Entity.MakeLinearTransform(
+                            SharpDXUtils.FromLinearTransform(blueprintTransform) *
+                            SharpDXUtils.FromLinearTransform(offset)
+                            );
+                    }
+
                     xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
                     WriteTransformToXML(xmlWriter, blueprintTransform);
                     xmlWriter.WriteEndElement();
+
+                    ExportObjects(asset.Objects.ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
+                        ref smiCount, ref objCount, ref spatialCount, blueprintTransform);
 
                     objCount++;
                     instanceCount++;
