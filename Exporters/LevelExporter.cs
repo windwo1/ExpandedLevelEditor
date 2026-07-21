@@ -34,13 +34,15 @@ namespace LevelEditorPlugin.Exporters
         [DisplayName("Export Prefabs")]
         public bool ExportPrefabs { get; set; } = true;
 
-        [DisplayName("Use alpha in materials")]
+        [DisplayName("Use Alpha In Materials")]
         public bool UseAlpha { get; set; } = true;
 
 #if !GW1
-        [DisplayName("Use emission in materials")]
+        [DisplayName("Use Emission In Materials")]
         public bool UseEmission { get; set; } = false;
 #endif
+        [DisplayName("Terrain Decimation (none = 1)")]
+        public float TerrainDecimation { get; set; } = 0.05f;
     }
 
     public class LevelExporter
@@ -118,6 +120,7 @@ namespace LevelEditorPlugin.Exporters
 #if !GW1
                 xmlWriter.WriteElementString("UseEmission", exportSettings.UseEmission.ToString());
 #endif
+                xmlWriter.WriteElementString("TerrainDecimation", exportSettings.TerrainDecimation.ToString());
 
                 xmlWriter.WriteEndElement();
 
