@@ -11,6 +11,7 @@ using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
 using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
+using LevelEditorPlugin.Exporters;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
 using LevelEditorPlugin.Render;
@@ -101,7 +102,7 @@ namespace LevelEditorPlugin.Editors
                 new DividerToolbarItem(),
                 new RegularToolbarItem("", "Capture thumbnail preview", "LevelEditorPlugin/Images/CaptureThumbnail.png", new RelayCommand((o) => { CaptureThumbnail(viewport); })),
                 new ToggleToolbarItem("", "Show/Hide thumbnail safezone", "LevelEditorPlugin/Images/ThumbnailSafezone.png", false, new RelayCommand((o) => { ShowThumbnailSafeZone(thumbnailBorder.Visibility == Visibility.Collapsed, viewport); })),
-                new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => { ExportLevel(); }))
+                new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => new LevelExporter(RootLayer)))
             };
         }
 

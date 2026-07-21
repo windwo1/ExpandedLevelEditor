@@ -17,8 +17,8 @@ namespace LevelEditorPlugin.Entities
         public new FrostySdk.Ebx.SpatialReferenceObjectData Data => data as FrostySdk.Ebx.SpatialReferenceObjectData;
         protected Entity RootEntity => (entities.Count > 0) ? entities[0] : null;
 
-        public SpatialReferenceObject(FrostySdk.Ebx.SpatialReferenceObjectData inData, Entity inParent, EntityWorld inWorld, PointerRef? inBlueprint = null)
-            : base(inData, inParent, inWorld, inBlueprint)
+        public SpatialReferenceObject(FrostySdk.Ebx.SpatialReferenceObjectData inData, Entity inParent, EntityWorld inWorld)
+            : base(inData, inParent, inWorld)
         {
         }
 
