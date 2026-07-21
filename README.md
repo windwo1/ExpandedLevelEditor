@@ -26,6 +26,6 @@ This plugin will also let you export levels to Blender, and will export meshes, 
 
 Python scripts to import the levels to blender:
 
-**GW2:** https://drive.google.com/file/d/1yKodkvfjvWh45hn-r1Hrh7_lF9b2vswg/view?usp=sharing
+**GW2:** https://drive.google.com/file/d/16JkmI7uJgIomrbtzTAEZAbnzJDg5ZWW6/view?usp=sharing
 
-**GW1:** https://drive.google.com/file/d/1gL5wfgkK6MpXSoGN444G5yZl-snCyWI_/view?usp=sharing
+**GW1:** https://drive.google.com/file/d/1qvZfDA08LsRXEWmlV674npO87DdL6WMc/view?usp=sharing
