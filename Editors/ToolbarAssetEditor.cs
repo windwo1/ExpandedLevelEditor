@@ -9,6 +9,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,7 +18,6 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using Frosty.Core.Managers;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -320,8 +320,34 @@ namespace LevelEditorPlugin.Editors
 
     #endregion
 
-    public class ToolbarAssetEditor : FrostyBaseAssetEditor
+    public class ToolbarAssetEditor : FrostyAssetEditor
     {
+        private bool loaded;
+
+        private readonly string[] resources =
+        {
+            "Shaders/TerrainShader.bin",
+            "Shaders/TerrainShader.xml",
+            "Shaders/GizmoShader.bin",
+            "Shaders/GizmoShader.xml",
+            "Shaders/SpriteShader.bin",
+            "Shaders/SpriteShader.xml",
+            "Shaders/LevelShader.bin",
+            "Shaders/LevelShader.xml",
+            "Resources/Textures/Sprites/Conversation.dds",
+            "Resources/Textures/Sprites/DirectionalLight.dds",
+            "Resources/Textures/Sprites/GameObject.dds",
+            "Resources/Textures/Sprites/Location.dds",
+            "Resources/Textures/Sprites/PointLight.dds",
+            "Resources/Textures/Sprites/RectLight.dds",
+            "Resources/Textures/Sprites/SpotLight.dds",
+            "Resources/Textures/DefaultLayer.dds",
+            "Resources/Textures/DefaultLightProbe.dds",
+            "Resources/Textures/DefaultSprite.dds",
+            "Resources/Textures/TranslateGizmo.dds",
+            "Resources/Textures/TranslateGizmoSelected.dds",
+        };
+
         public ToolbarAssetEditor(ILogger inLogger) : base(inLogger)
         {
         }
@@ -331,17 +357,60 @@ namespace LevelEditorPlugin.Editors
             return LoadedAssetManager.Instance.GetEbxAsset(guid);
         }
 
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            Loaded += ToolbarAssetEditor_Loaded;
+        }
+
+        private void ToolbarAssetEditor_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (!loaded)
+            {
+                CopyResources();
+                Initialize();
+                loaded = true;
+            }
+        }
+
+        private void CopyResources()
+        {
+            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, "Resources", "Textures", "Sprites"));
+
+            foreach (string name in resources)
+            {
+                string path = Path.Combine(Environment.CurrentDirectory, name);
+                if (File.Exists(path))
+                    continue;
+
+                var uri = new Uri($"pack://application:,,,/LevelEditorPlugin;component/{name}", UriKind.Absolute);
+
+                using (var fs = new FileStream(path, FileMode.Create))
+                {
+                    using (var uriStream = Application.GetResourceStream(uri).Stream)
+                    {
+                        uriStream.CopyTo(fs);
+                    }
+                }
+            }
+        }
+
+        public virtual void Initialize()
+        {
+        }
+
         protected void PerformTemplateMagic()
         {
             Window win = App.EditorWindow as Window;
 
             Grid g = win.Content as Grid;
-            //g = g.Children[0] as Grid;
+            g = g.Children[0] as Grid;
             g = g.Children[1] as Grid;
 
             Border b = g.Children[0] as Border;
             DockPanel dp = b.Child as DockPanel;
-            b = dp.Children[2] as Border;
+            b = dp.Children[1] as Border;
 
             // Inject a template selector into the toolbar items control so that new
             // types of toolbar items can be defined
@@ -361,7 +430,7 @@ namespace LevelEditorPlugin.Editors
                     FindResource("DividerToolbarItem") as DataTemplate
                 });
 
-            App.EditorWindow.DataExplorer.SetValue(DragDropExtension.IsDragDropDataExplorerProperty, true);
+            //App.EditorWindow.DataExplorer.SetValue(DragDropExtension.IsDragDropDataExplorerProperty, true);
         }
     }
 }

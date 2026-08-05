@@ -6,7 +6,6 @@ using FrostySdk.Managers;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using FrostySdk;
-using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
 
 namespace LevelEditorPlugin.Resources

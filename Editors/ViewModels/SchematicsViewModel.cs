@@ -22,7 +22,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Frosty.Core.Managers;
 using FrostySdk.Ebx;
 using LevelEditorPlugin.Entities;
 using Entity = LevelEditorPlugin.Entities.Entity;

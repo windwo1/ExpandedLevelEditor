@@ -11,7 +11,6 @@ using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Render.Proxies;
 using LevelEditorPlugin.Managers;
 using System.IO;
-using Frosty.Core.Managers;
 using FrostySdk.Attributes;
 using FrostySdk.Ebx;
 using FrostySdk.IO;

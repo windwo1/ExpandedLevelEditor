@@ -9,7 +9,6 @@ using System.Windows.Media;
 using Frosty.Core;
 using FrostySdk.IO;
 using FrostySdk.Managers;
-using FrostySdk.Managers.Entries;
 using LevelEditorPlugin.Assets;
 
 namespace LevelEditorPlugin.Managers

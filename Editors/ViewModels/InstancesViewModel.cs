@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Frosty.Core.Managers;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
 

@@ -3,7 +3,7 @@ using Frosty.Core.Viewport;
 using Frosty.Hash;
 using FrostySdk;
 using FrostySdk.IO;
-using FrostySdk.Managers.Entries;
+using FrostySdk.Managers;
 using LevelEditorPlugin.Resources;
 using MeshSetPlugin.Render;
 using SharpDX;
@@ -16,6 +16,7 @@ using D3D11 = SharpDX.Direct3D11;
 using MeshSet = LevelEditorPlugin.Resources.MeshSet;
 using MeshSetLod = LevelEditorPlugin.Resources.MeshSetLod;
 using MeshSetSection = LevelEditorPlugin.Resources.MeshSetSection;
+using ShaderPermutation = Frosty.Core.Viewport.ShaderPermutation;
 
 namespace LevelEditorPlugin.Render
 {

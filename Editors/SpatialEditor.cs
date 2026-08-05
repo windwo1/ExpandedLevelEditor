@@ -5,6 +5,7 @@ using FrostySdk.Interfaces;
 using LevelEditorPlugin.Controls;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
+using LevelEditorPlugin.Properties;
 using LevelEditorPlugin.Screens;
 using System;
 using System.Collections.Generic;
@@ -73,6 +74,20 @@ namespace LevelEditorPlugin.Editors
             : base(inLogger)
         {
             dockManager = new DockManager(this);
+
+            Loaded += SpatialEditor_Loaded;
+            Unloaded += SpatialEditor_Unloaded;
+        }
+
+        private void SpatialEditor_Unloaded(object sender, RoutedEventArgs e)
+        {
+            DockManager.HideFloatingWindows();
+        }
+
+        private void SpatialEditor_Loaded(object sender, RoutedEventArgs e)
+        {
+            DockManager.ShowFloatingWindows();
+            screen.SetCamera();
         }
 
         public void SelectEntity(Entities.Entity newSelection)
@@ -126,17 +141,6 @@ namespace LevelEditorPlugin.Editors
             editingWorld.Destroy();
 
             base.Closed();
-        }
-
-        protected override void Reload()
-        {
-            DockManager.ShowFloatingWindows();
-            screen.SetCamera();
-        }
-
-        protected override void Unload()
-        {
-            DockManager.HideFloatingWindows();
         }
 
         // @temp
@@ -211,7 +215,7 @@ namespace LevelEditorPlugin.Editors
             viewport.GetType().GetMethod("CreateSizeDependentBuffers", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(viewport, null);
             viewport.SetPaused(false);
 
-            App.NotificationManager.Show("Thumbnail created");
+            App.Logger.Log("Thumbnail created");
         }
 
         public static void UpdateTask(string status = null, double? progress = null)

@@ -4,7 +4,6 @@ using FrostySdk;
 using FrostySdk.Ebx;
 using FrostySdk.IO;
 using FrostySdk.Managers;
-using FrostySdk.Managers.Entries;
 using System;
 using System.Collections;
 using System.Collections.Generic;

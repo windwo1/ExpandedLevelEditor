@@ -6,7 +6,7 @@ using FrostySdk;
 using FrostySdk.Attributes;
 using FrostySdk.Ebx;
 using FrostySdk.IO;
-using FrostySdk.Managers.Entries;
+using FrostySdk.Managers;
 using FrostySdk.Resources;
 using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
@@ -54,7 +54,16 @@ namespace LevelEditorPlugin.Exporters
         {
             rootLayer = root;
 
-            exportSettings = new LevelExportSettings();
+            exportSettings = new LevelExportSettings
+            {
+                LODIndex = Config.Get<int>("LODIndex", 0),
+                ExportPrefabs = Config.Get<bool>("ExportPrefabs", true),
+                UseAlpha = Config.Get<bool>("UseAlpha", true),
+#if !GW1
+                UseEmission = Config.Get<bool>("UseEmission", false),
+#endif
+                TerrainDecimation = Config.Get<float>("TerrainDecimation", 0.05f)
+            };
 
             if (FrostyImportExportBox.Show("Level Export Settings", FrostyImportExportType.Export, exportSettings) == MessageBoxResult.OK)
             {

@@ -364,10 +364,7 @@ namespace LevelEditorPlugin.Exporters
             }
 
             if (ProfilesLibrary.IsLoaded(ProfileVersion.StarWarsBattlefrontII, ProfileVersion.Battlefield5,
-                ProfileVersion.PlantsVsZombiesBattleforNeighborville, ProfileVersion.StarWarsSquadrons,
-                ProfileVersion.Madden22, ProfileVersion.Fifa22,
-                ProfileVersion.Battlefield2042, ProfileVersion.Madden23,
-                ProfileVersion.NeedForSpeedUnbound, ProfileVersion.DeadSpace, ProfileVersion.DragonAgeVeilguard) && meshAsset != null)
+                ProfileVersion.PlantsVsZombiesBattleforNeighborville, ProfileVersion.StarWarsSquadrons) && meshAsset != null)
             {
                 int procIndex = 0;
                 dynamic skinnedProcAnim = meshAsset.SkinnedProceduralAnimation;

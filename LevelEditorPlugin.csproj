@@ -148,6 +148,29 @@
     <None Remove="Images\UIWidgetFileType.png" />
     <None Remove="Images\Unchecked.png" />
     <None Remove="Images\XMLFile.png" />
+    <None Remove="Resources\Meshes\Flag.bin" />
+    <None Remove="Resources\Meshes\Sprite.bin" />
+    <None Remove="Resources\Meshes\TranslateGizmo.bin" />
+    <None Remove="Shaders\GizmoShader.bin" />
+    <None Remove="Shaders\GizmoShader.xml" />
+    <None Remove="Shaders\LevelShader.bin" />
+    <None Remove="Shaders\LevelShader.xml" />
+    <None Remove="Shaders\SpriteShader.bin" />
+    <None Remove="Shaders\SpriteShader.xml" />
+    <None Remove="Shaders\TerrainShader.bin" />
+    <None Remove="Shaders\TerrainShader.xml" />
+    <None Remove="Resources\Textures\DefaultLayer.dds" />
+    <None Remove="Resources\Textures\DefaultLightProbe.dds" />
+    <None Remove="Resources\Textures\DefaultSprite.dds" />
+    <None Remove="Resources\Textures\Sprites\Conversation.dds" />
+    <None Remove="Resources\Textures\Sprites\DirectionalLight.dds" />
+    <None Remove="Resources\Textures\Sprites\GameObject.dds" />
+    <None Remove="Resources\Textures\Sprites\Location.dds" />
+    <None Remove="Resources\Textures\Sprites\PointLight.dds" />
+    <None Remove="Resources\Textures\Sprites\RectLight.dds" />
+    <None Remove="Resources\Textures\Sprites\SpotLight.dds" />
+    <None Remove="Resources\Textures\TranslateGizmo.dds" />
+    <None Remove="Resources\Textures\TranslateGizmoSelected.dds" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
@@ -262,6 +285,29 @@
     <Resource Include="Images\Types\VisualEnvironmentFileType.png" />
     <Resource Include="Images\Unchecked.png" />
     <Resource Include="Images\XMLFile.png" />
+    <Resource Include="Resources\Meshes\Flag.bin" />
+    <Resource Include="Resources\Meshes\Sprite.bin" />
+    <Resource Include="Resources\Meshes\TranslateGizmo.bin" />
+    <Resource Include="Shaders\GizmoShader.bin" />
+    <Resource Include="Shaders\GizmoShader.xml" />
+    <Resource Include="Shaders\LevelShader.bin" />
+    <Resource Include="Shaders\LevelShader.xml" />
+    <Resource Include="Shaders\SpriteShader.bin" />
+    <Resource Include="Shaders\SpriteShader.xml" />
+    <Resource Include="Shaders\TerrainShader.bin" />
+    <Resource Include="Shaders\TerrainShader.xml" />
+    <Resource Include="Resources\Textures\DefaultLayer.dds" />
+    <Resource Include="Resources\Textures\DefaultLightProbe.dds" />
+    <Resource Include="Resources\Textures\DefaultSprite.dds" />
+    <Resource Include="Resources\Textures\Sprites\Conversation.dds" />
+    <Resource Include="Resources\Textures\Sprites\DirectionalLight.dds" />
+    <Resource Include="Resources\Textures\Sprites\GameObject.dds" />
+    <Resource Include="Resources\Textures\Sprites\Location.dds" />
+    <Resource Include="Resources\Textures\Sprites\PointLight.dds" />
+    <Resource Include="Resources\Textures\Sprites\RectLight.dds" />
+    <Resource Include="Resources\Textures\Sprites\SpotLight.dds" />
+    <Resource Include="Resources\Textures\TranslateGizmo.dds" />
+    <Resource Include="Resources\Textures\TranslateGizmoSelected.dds" />
   </ItemGroup>
 
   <ItemGroup>

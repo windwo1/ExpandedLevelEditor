@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using FrostySdk.Managers;
-using FrostySdk.Managers.Entries;
 
 namespace LevelEditorPlugin.Managers
 {

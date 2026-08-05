@@ -7,7 +7,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
-using FrostySdk.Managers.Entries;
 using FrostySdk;
 using LevelEditorPlugin;
 
@@ -32,10 +31,11 @@ using LevelEditorPlugin;
 [assembly: PluginAuthor("GalaxyMan2015 and Cade")]
 [assembly: PluginVersion("1.0.0.0")]
 
+#if DEBUG
 [assembly: RegisterMenuExtension(typeof(EntityGeneratorExtension))]
 [assembly: RegisterMenuExtension(typeof(DumpLayoutsToLogExtension))]
 [assembly: RegisterMenuExtension(typeof(BlueprintAnalysisExtension))]
-[assembly: RegisterMenuExtension(typeof(SaveToOldProject))]
+#endif
 
 [assembly: RegisterAssetDefinition("LevelData", typeof(LevelDataAssetDefinition))]
 [assembly: RegisterAssetDefinition("DetachedSubWorldData", typeof(DetachedSubWorldDataAssetDefinition))]
@@ -50,6 +50,8 @@ using LevelEditorPlugin;
 [assembly: RegisterUserShader("GizmoShader", "GizmoShader")]
 [assembly: RegisterUserShader("SpriteShader", "SpriteShader")]
 [assembly: RegisterUserShader("LevelShader", "LevelShader")]
+
+[assembly: RegisterOptionsExtension(typeof(LevelEditorOptions))]
 
 #if MASS_EFFECT
 [assembly: PluginValidForProfile((int)ProfileVersion.MassEffectAndromeda)]

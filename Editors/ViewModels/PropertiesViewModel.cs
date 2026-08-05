@@ -19,7 +19,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
-using Frosty.Core.Managers;
 using DisplayNameAttribute = FrostySdk.Attributes.DisplayNameAttribute;
 using PointerRef = FrostySdk.Ebx.PointerRef;
 using SharpDX;

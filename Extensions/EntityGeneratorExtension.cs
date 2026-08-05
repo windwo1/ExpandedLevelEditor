@@ -61,7 +61,7 @@ namespace LevelEditorPlugin.Extensions
                 RecursivelyCreateTimelineTrackBoilerplate(type, types, outPath);
             }
 
-            App.NotificationManager.Show("Generation complete");
+            App.Logger.Log("Generation complete");
             App.Logger.Log($"Generated entity boilerplate code to {outPath}");
         });
 

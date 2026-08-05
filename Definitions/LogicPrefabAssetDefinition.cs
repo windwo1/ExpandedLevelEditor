@@ -1,4 +1,5 @@
 ﻿using Frosty.Controls;
+using Frosty.Core;
 using Frosty.Core.Controls;
 using FrostySdk.Interfaces;
 using LevelEditorPlugin.Editors;
@@ -13,7 +14,12 @@ namespace LevelEditorPlugin.Definitions
 
         public override FrostyAssetEditor GetEditor(ILogger logger)
         {
-            return new LogicPrefabEditor(logger);
+            if (Config.Get<bool>("LogicPrefabEditorEnabled", false))
+            {
+                return new LogicPrefabEditor(logger);
+            }
+
+            return null;
         }
     }
 }

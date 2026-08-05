@@ -10,7 +10,6 @@ using System.Text;
 using System.Threading.Tasks;
 using FrostySdk.Ebx;
 using FrostySdk.Managers;
-using FrostySdk.Managers.Entries;
 
 namespace LevelEditorPlugin.Extensions
 {

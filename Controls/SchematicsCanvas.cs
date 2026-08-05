@@ -19,7 +19,6 @@ using LevelEditorPlugin.Library.Reflection;
 using System.Diagnostics;
 using System.Collections.Specialized;
 using System.Windows.Controls.Primitives;
-using Frosty.Core.Managers;
 using FrostySdk.Ebx;
 using LevelEditorPlugin.Library.Schematics;
 using LevelEditorPlugin.Windows;
@@ -899,7 +898,7 @@ namespace LevelEditorPlugin.Controls
             else if (e.Key == Key.R)
             {
                 InvalidateVisual();
-                Frosty.Core.App.NotificationManager.Show("Invalidated Visual");
+                Frosty.Core.App.Logger.Log("Invalidated Visual");
             }
 
             base.OnPreviewKeyUp(e);
@@ -1936,7 +1935,7 @@ namespace LevelEditorPlugin.Controls
                 BaseNodeVisual.Port port = (o as MenuItem).DataContext as BaseNodeVisual.Port;
                 Clipboard.SetText(port.Name);
                 
-                Frosty.Core.App.NotificationManager.Show($"Copied {port.Name}");
+                Frosty.Core.App.Logger.Log($"Copied {port.Name}");
             };
             portContextMenu.Items.Add(copyNameMenuItem);
             

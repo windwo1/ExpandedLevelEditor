@@ -8,7 +8,7 @@ using FrostySdk;
 using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
 using FrostySdk.IO;
-using FrostySdk.Managers.Entries;
+using FrostySdk.Managers;
 using LevelEditorPlugin.Assets;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Exporters;
@@ -30,6 +30,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Xml.Linq;
 using Matrix = SharpDX.Matrix;
 
 namespace LevelEditorPlugin.Editors
@@ -243,15 +244,7 @@ namespace LevelEditorPlugin.Editors
             viewport.Screen = screen;
         }
 
-        public override void Closed()
-        {
-            DockManager.SaveToConfig("LevelEditor");
-            viewport.Shutdown();
-
-            base.Closed();
-        }
-
-        protected override void Initialize()
+        public override void Initialize()
         {
             Stopwatch timer = new Stopwatch();
             timer.Start();
@@ -306,6 +299,14 @@ namespace LevelEditorPlugin.Editors
             DockManager.AddItemOnLoad(new SchematicsViewModel(this, rootLayer));
 
             screen.OnKeyUp += Screen_OnKeyUp;
+        }
+
+        public override void Closed()
+        {
+            DockManager.SaveToConfig("LevelEditor");
+            viewport.Shutdown();
+
+            base.Closed();
         }
 
         private void Screen_OnKeyUp(object sender, OnKeyUpEventArgs e)

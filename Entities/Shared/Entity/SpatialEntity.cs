@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Frosty.Core.Managers;
 using Frosty.Core.Viewport;
 using LevelEditorPlugin.Managers;
 using SharpDX;

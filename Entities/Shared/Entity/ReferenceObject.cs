@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using SharpDX;
 using Frosty.Core;
 using System.IO;
-using Frosty.Core.Managers;
 using FrostySdk.Ebx;
 using FrostySdk.IO;
 using DataField = FrostySdk.Ebx.DataField;

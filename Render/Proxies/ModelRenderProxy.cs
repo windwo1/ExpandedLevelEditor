@@ -5,7 +5,6 @@ using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using FrostySdk;
 using FrostySdk.IO;
-using FrostySdk.Managers.Entries;
 using LevelEditorPlugin.Assets;
 using LevelEditorPlugin.Entities;
 using SharpDX;

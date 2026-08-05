@@ -70,7 +70,7 @@ namespace LevelEditorPlugin.Editors
         {
         }
 
-        protected override void Initialize()
+        public override void Initialize()
         {
             viewModel.SetLayer(rootLayer);
         }

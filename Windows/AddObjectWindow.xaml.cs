@@ -1,6 +1,6 @@
 ﻿using Frosty.Controls;
 using Frosty.Core;
-using FrostySdk.Managers.Entries;
+using FrostySdk.Managers;
 using System;
 using System.Windows;
 using System.Windows.Controls;

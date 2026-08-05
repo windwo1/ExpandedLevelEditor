@@ -7,7 +7,6 @@ using FrostySdk;
 using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
 using FrostySdk.IO;
-using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
 using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
@@ -114,15 +113,7 @@ namespace LevelEditorPlugin.Editors
             viewport.Screen = screen;
         }
 
-        public override void Closed()
-        {
-            DockManager.SaveToConfig("SpatialPrefabEditor");
-            viewport.Shutdown();
-
-            base.Closed();
-        }
-
-        protected override void Initialize()
+        public override void Initialize()
         {
             Stopwatch timer = new Stopwatch();
             timer.Start();
@@ -188,6 +179,14 @@ namespace LevelEditorPlugin.Editors
             DockManager.AddItemOnLoad(new PropertiesViewModel(this, editingWorld));
             DockManager.AddItemOnLoad(new TimelineViewModel(this));
             DockManager.AddItemOnLoad(new SchematicsViewModel(this, rootLayer));
+        }
+
+        public override void Closed()
+        {
+            DockManager.SaveToConfig("SpatialPrefabEditor");
+            viewport.Shutdown();
+
+            base.Closed();
         }
     }
 }

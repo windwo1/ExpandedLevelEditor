@@ -71,7 +71,7 @@ namespace LevelEditorPlugin.Editors
             return items;
         }
 
-        protected override void Initialize()
+        public override void Initialize()
         {
 #if !GW1
             FrostySdk.Ebx.LogicPrefabReferenceObjectData objectData = new FrostySdk.Ebx.LogicPrefabReferenceObjectData()
@@ -135,7 +135,7 @@ namespace LevelEditorPlugin.Editors
                 world.EndSimulation();
             }
 
-            App.NotificationManager.Show($"Simulation {((IsInGameView) ? "Started" : "Stopped")}");
+            App.Logger.Log($"Simulation {((IsInGameView) ? "Started" : "Stopped")}");
         }
 
         private void SimulationUpdated(object sender, EventArgs e)

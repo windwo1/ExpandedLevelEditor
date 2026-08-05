@@ -11,7 +11,6 @@ using System.IO;
 using FrostySdk;
 using Frosty.Core.Mod;
 using Frosty.Core.IO;
-using FrostySdk.Managers.Entries;
 using LevelEditorPlugin.Resources.Hkx;
 using Frosty.Core;
 using Frosty.Controls;
