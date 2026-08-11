@@ -35,7 +35,10 @@ namespace LevelEditorPlugin
         [DisplayName("Spatial Prefab Editor Enabled")]
         [Description("Enables the Spatial Prefab Editor for assets of type 'SpatialPrefabBlueprint'")]
         public bool SpatialPrefabEditorEnabled { get; set; } = true;
-
+        [Category("Editor Options")]
+        [DisplayName("Manage Bundles For Objects")]
+        [Description("Automatically assigns the bundles from the layer asset to all dependencies of the added objects, including Res/Chunks. Can sometimes crash the game, the Bundle Manager is experimental")]
+        public bool BundleManagerEnabled { get; set; } = false;
         [Category("Exporting")]
         [DisplayName("Mesh LOD")]
         [Description("The LOD (Level Of Detail) that will be exported for each mesh. If the selected LOD is higher than the max LOD of a mesh, it will export whatever is the highest LOD")]
@@ -70,6 +73,8 @@ namespace LevelEditorPlugin
             LogicPrefabEditorEnabled = Config.Get<bool>("LogicPrefabEditorEnabled", false);
             SpatialPrefabEditorEnabled = Config.Get<bool>("SpatialPrefabEditorEnabled", true);
 
+            BundleManagerEnabled = Config.Get<bool>("BundleManagerEnabled", true);
+
             LODIndex = Config.Get<int>("LODIndex", 0);
             ExportPrefabs = Config.Get<bool>("ExportPrefabs", true);
             UseAlpha = Config.Get<bool>("UseAlpha", true);
@@ -86,6 +91,8 @@ namespace LevelEditorPlugin
             Config.Add("ObjectBlueprintEditorEnabled", ObjectBlueprintEditorEnabled);
             Config.Add("LogicPrefabEditorEnabled", LogicPrefabEditorEnabled);
             Config.Add("SpatialPrefabEditorEnabled", SpatialPrefabEditorEnabled);
+
+            Config.Add("BundleManagerEnabled", BundleManagerEnabled);
 
             Config.Add("LODIndex", LODIndex);
             Config.Add("ExportPrefabs", ExportPrefabs);

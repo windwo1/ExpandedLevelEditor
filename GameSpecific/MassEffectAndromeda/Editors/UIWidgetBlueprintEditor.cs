@@ -24,7 +24,6 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
-using Frosty.Core.Managers;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -185,6 +184,9 @@ namespace LevelEditorPlugin.Editors
             PerformTemplateMagic();
 
             canvas = GetTemplateChild("PART_Canvas") as UIWidgetCanvas;
+
+            Loaded += (__, _) => Reload();
+            Unloaded += (__, _) => Unload();
         }
 
         public void CenterOnSelection()
@@ -363,17 +365,17 @@ namespace LevelEditorPlugin.Editors
             }
         }
 
-        protected override void Reload()
+        private void Reload()
         {
             dockManager.ShowFloatingWindows();
         }
 
-        protected override void Unload()
+        private void Unload()
         {
             dockManager.HideFloatingWindows();
         }
 
-        protected override void Initialize()
+        public override void Initialize()
         {
             FrostySdk.Ebx.UIElementWidgetReferenceEntityData objectData = new FrostySdk.Ebx.UIElementWidgetReferenceEntityData()
             {
@@ -465,7 +467,7 @@ namespace LevelEditorPlugin.Editors
                 world.EndSimulation();
             }
 
-            App.NotificationManager.Show($"Simulation {((IsInGameView) ? "Started" : "Stopped")}");
+            App.Logger.Log($"Simulation {((IsInGameView) ? "Started" : "Stopped")}");
         }
 
         protected override void OnPreviewMouseMove(MouseEventArgs e)

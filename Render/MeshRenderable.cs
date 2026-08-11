@@ -198,8 +198,6 @@ namespace LevelEditorPlugin.Render
             }
         }
 
-        private TextureExporter exporter = new TextureExporter();
-
         public void UpdateSectionMaterial(RenderCreateState state, MeshSectionRenderable section, MeshMaterial material)
         {
             EbxAssetEntry shaderAsset = App.AssetManager.GetEbxEntry(material.Shader.External.FileGuid);

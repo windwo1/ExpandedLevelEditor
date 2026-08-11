@@ -11,9 +11,14 @@ using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Render.Proxies;
 using SharpDX;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using D3D11 = SharpDX.Direct3D11;
 using Key = System.Windows.Input.Key;
@@ -412,6 +417,7 @@ namespace LevelEditorPlugin.Screens
 
         private Queue<RenderAction> renderTasks = new Queue<RenderAction>();
         private List<RenderProxy> proxies = new List<RenderProxy>();
+        private Entity currentEntity;
 
         private TranslateGizmo translateGizmo;
 

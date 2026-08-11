@@ -1,6 +1,7 @@
 ﻿using Frosty.Core;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -124,7 +125,6 @@ namespace LevelEditorPlugin.Managers
 
         public void Undo()
         {
-            App.Logger.Log(undoStack.Count.ToString());
             if (undoStack.Count > 0)
             {
                 isUndoing = true;

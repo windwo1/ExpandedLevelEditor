@@ -343,7 +343,7 @@ namespace LevelEditorPlugin.Editors
                 var guid = refObj.Data.Blueprint.External.FileGuid;
                 var transform = refObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, refObj.Layer);
+                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, refObj.Layer, refObj.Parent);
                 return;
             }
             else if (selectedEntity is StaticModelGroupElementEntity staticObj)
@@ -366,6 +366,8 @@ namespace LevelEditorPlugin.Editors
             {
                 while (count > 0)
                 {
+                    task.Update("Adding Objects");
+
                     EbxAsset layerAsset = null;
                     Entities.Entity owner = null;
                     Entities.Entity parent = null;
@@ -459,16 +461,21 @@ namespace LevelEditorPlugin.Editors
                     try
                     {
                         // if flags aren't 1, it won't show up in game
-                        ((dynamic)layerAsset.RootObject).Flags = 1; 
+                        ((dynamic)layerAsset.RootObject).Flags = 1;
                     }
                     catch (RuntimeBinderException) { }
 
                     var layerEntry = App.AssetManager.GetEbxEntry(layerAsset.FileGuid);
 
+                    if (count == maxCount && Config.Get<bool>("BundleManagerEnabled", false))
+                    {
+                        task.Update("Managing Bundles");
+                        BundleManager.Instance.Manage(layerEntry.EnumerateBundles().ToList(), App.AssetManager.GetEbxEntry(prefabName));
+                    }
+
                     App.AssetManager.ModifyEbx(layerEntry.Name, layerAsset);
 
                     count--;
-                    task.Update($"{maxCount - count}/{maxCount}");
                 }
             });
         }

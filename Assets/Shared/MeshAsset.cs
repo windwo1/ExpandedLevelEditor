@@ -33,14 +33,13 @@ namespace LevelEditorPlugin.Assets
             if (MeshData == null)
             {
                 Resources.MeshSet meshSet = App.AssetManager.GetResAs<Resources.MeshSet>(App.AssetManager.GetResEntry(Data.MeshSetResource));
-                MeshData = new Render.MeshRenderable(state, meshSet, GetMaterials(state, this), lodGroup.Data, new MeshSetPlugin.Render.MeshRenderSkeleton());
+                MeshData = new Render.MeshRenderable(state, meshSet, GetMaterials(state), lodGroup.Data, new MeshSetPlugin.Render.MeshRenderSkeleton());
             }
         }
 
-        private MeshMaterialCollection GetMaterials(RenderCreateState state, MeshAsset asset)
+        private MeshMaterialCollection GetMaterials(RenderCreateState state)
         {
-            EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(asset.FileGuid));
-
+            EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(FileGuid));
             return new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()); ;
         }
 

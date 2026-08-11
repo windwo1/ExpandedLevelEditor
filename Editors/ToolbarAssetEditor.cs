@@ -322,6 +322,7 @@ namespace LevelEditorPlugin.Editors
 
     public class ToolbarAssetEditor : FrostyAssetEditor
     {
+        private RoutedCommand undoCommand;
         private bool loaded;
 
         private readonly string[] resources =
@@ -362,6 +363,11 @@ namespace LevelEditorPlugin.Editors
             base.OnApplyTemplate();
 
             Loaded += ToolbarAssetEditor_Loaded;
+
+            undoCommand = new RoutedCommand();
+            undoCommand.InputGestures.Add(new KeyGesture(Key.Z, ModifierKeys.Control));
+
+            CommandBindings.Add(new CommandBinding(undoCommand, ToolbarAssetEditor_Undo));
         }
 
         private void ToolbarAssetEditor_Loaded(object sender, RoutedEventArgs e)
@@ -372,6 +378,16 @@ namespace LevelEditorPlugin.Editors
                 Initialize();
                 loaded = true;
             }
+        }
+
+        private void ToolbarAssetEditor_Undo(object sender, RoutedEventArgs e)
+        {
+            UndoManager.Instance.Undo();
+        }
+
+        public override void Closed()
+        {
+            UndoManager.ClearCurrent();
         }
 
         private void CopyResources()

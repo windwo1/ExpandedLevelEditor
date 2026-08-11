@@ -174,7 +174,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-      <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)bin\Release\Final\Plugins\LevelEditorPlugin.dll&quot;" />
+      <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)bin\Developer\Debug\Plugins\LevelEditorPlugin.dll&quot;" />
   </Target>
 
   <ItemGroup>

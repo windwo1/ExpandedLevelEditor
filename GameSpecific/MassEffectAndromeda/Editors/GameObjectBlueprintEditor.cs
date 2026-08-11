@@ -37,7 +37,7 @@ namespace LevelEditorPlugin.Editors
         //    return items;
         //}
 
-        protected override void Initialize()
+        public override void Initialize()
         {
             FrostySdk.Ebx.ObjectReferenceObjectData objectData = new FrostySdk.Ebx.ObjectReferenceObjectData()
             {

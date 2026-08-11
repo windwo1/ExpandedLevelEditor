@@ -1,21 +1,13 @@
-﻿using Frosty.Controls;
-using Frosty.Core;
-using Frosty.Core.Controls;
+﻿using Frosty.Core;
 using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using FrostySdk;
-using FrostySdk.IO;
-using LevelEditorPlugin.Assets;
 using LevelEditorPlugin.Entities;
 using SharpDX;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Security.AccessControl;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using D3D11 = SharpDX.Direct3D11;
 
@@ -30,8 +22,6 @@ namespace LevelEditorPlugin.Render.Proxies
         private D3D11.Buffer pixelParameters;
         private List<D3D11.ShaderResourceView> pixelTextures = new List<D3D11.ShaderResourceView>();
         private MeshMaterial material;
-
-        public static MeshMaterialCollection Materials;
 
         private static GeometryDeclarationDesc GeometryDecl = GeometryDeclarationDesc.Create(new GeometryDeclarationDesc.Element[]
         {
@@ -54,46 +44,25 @@ namespace LevelEditorPlugin.Render.Proxies
 
             RecalculateBoundingBox();
 
-            bool createMaterials = false;
-
-            // materials
-            if (createMaterials)
-            {
-                MeshAsset asset = null;
-                if (OwnerEntity is MeshProxyEntity meshProxyEntity) asset = meshProxyEntity.Mesh;
-                if (OwnerEntity is StaticModelEntity staticModelEntity) asset = staticModelEntity.Mesh;
-                if (OwnerEntity is ClothEntity clothEntity) asset = clothEntity.Mesh;
-                if (OwnerEntity is VegetationTreeEntity vegetationTreeEntity) asset = vegetationTreeEntity.Mesh;
-
-                if (asset != null)
+            material = new MeshMaterial();
+            material.VectorParameters.Add(
+                new FrostySdk.Ebx.VectorShaderParameter()
                 {
-                    EbxAsset ebx = App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(asset.FileGuid));
-
-                    renderData.SetMaterials(state, new MeshMaterialCollection(ebx, new FrostySdk.Ebx.PointerRef()));
-                }
-            }
-            else
-            {
-                material = new MeshMaterial();
-                material.VectorParameters.Add(
-                    new FrostySdk.Ebx.VectorShaderParameter()
+                    ParameterName = "Color",
+                    ParameterType = FrostySdk.Ebx.ShaderParameterType.ShaderParameterType_Vec4,
+                    Value = new FrostySdk.Ebx.Vec4()
                     {
-                        ParameterName = "Color",
-                        ParameterType = FrostySdk.Ebx.ShaderParameterType.ShaderParameterType_Vec4,
-                        Value = new FrostySdk.Ebx.Vec4()
-                        {
-                            x = OwnerEntity.Owner.Layer.LayerColor.Red,
-                            y = OwnerEntity.Owner.Layer.LayerColor.Green,
-                            z = OwnerEntity.Owner.Layer.LayerColor.Blue,
-                            w = 1.0f
-                        }
-                    });
-            }
+                        x = OwnerEntity.Owner.Layer.LayerColor.Red,
+                        y = OwnerEntity.Owner.Layer.LayerColor.Green,
+                        z = OwnerEntity.Owner.Layer.LayerColor.Blue,
+                        w = 1.0f
+                    }
+                });
 
-            permutation = state.ShaderLibrary.GetFallbackShader();
+            permutation = state.ShaderLibrary.GetUserShader("LevelShader", GeometryDecl);
             permutation.IsTwoSided = true;
             permutation.LoadShaders(state.Device);
-            permutation.AssignParameters(state, ref pixelParameters, ref pixelTextures);
+            permutation.AssignParameters(state, material, ref pixelParameters, ref pixelTextures);
         }
 
         public ModelRenderProxy(RenderCreateState state, MeshProxyEntity owner)
@@ -106,7 +75,7 @@ namespace LevelEditorPlugin.Render.Proxies
         {
         }
 
-#if !GW2 && !GW1 && !SWBF2
+#if MASS_EFFECT
         public ModelRenderProxy(RenderCreateState state, BangerEntity owner)
             : this(state, owner, owner.Mesh.MeshData)
         {
@@ -132,7 +101,7 @@ namespace LevelEditorPlugin.Render.Proxies
                 context.PixelShader.SetConstantBuffer(2, pixelParameters);
             }
 
-            renderData.GetLod(lodIndex).Render(context, renderPath);
+            renderData.GetLod(lodIndex).Render(context, renderPath); 
         }
 
         public override bool ShouldRender(float distToCamera, float screenSize)
@@ -154,14 +123,6 @@ namespace LevelEditorPlugin.Render.Proxies
             return new MeshRenderInstance() { RenderMesh = this, Transform = Transform };
         }
 
-        public override void RecalculateBoundingBox()
-        {
-            OrientedBoundingBox meshBbox = new OrientedBoundingBox(renderData.Bounds);
-            meshBbox.Transform(Transform);
-
-            BoundingBox = meshBbox.GetBoundingBox();
-        }
-
         public override void SetSelected(RenderCreateState state, bool newSelected)
         {
             foreach (var lod in renderData.LODs)
@@ -171,6 +132,14 @@ namespace LevelEditorPlugin.Render.Proxies
                     section.IsSelected = newSelected;
                 }
             }
+        }
+
+        public override void RecalculateBoundingBox()
+        {
+            OrientedBoundingBox meshBbox = new OrientedBoundingBox(renderData.Bounds);
+            meshBbox.Transform(Transform);
+
+            BoundingBox = meshBbox.GetBoundingBox();
         }
 
         public override void Dispose()
