@@ -24,29 +24,29 @@ using System.Windows;
 using System.Xml;
 using TexturePlugin;
 
-namespace LevelEditorPlugin.Exporters
+namespace LevelEditorPlugin.Editors.Exporters
 {
-    public class LevelExportSettings
-    {
-        [DisplayName("Mesh LOD")]
-        public int LODIndex { get; set; } = 0;
-
-        [DisplayName("Export Prefabs")]
-        public bool ExportPrefabs { get; set; } = true;
-
-        [DisplayName("Use Alpha In Materials")]
-        public bool UseAlpha { get; set; } = true;
-
-#if !GW1
-        [DisplayName("Use Emission In Materials")]
-        public bool UseEmission { get; set; } = false;
-#endif
-        [DisplayName("Terrain Decimation (none = 1)")]
-        public float TerrainDecimation { get; set; } = 0.05f;
-    }
-
     public class LevelExporter
     {
+        private class LevelExportSettings
+        {
+            [DisplayName("Mesh LOD")]
+            public int LODIndex { get; set; } = 0;
+
+            [DisplayName("Export Prefabs")]
+            public bool ExportPrefabs { get; set; } = true;
+
+            [DisplayName("Use Alpha In Materials")]
+            public bool UseAlpha { get; set; } = true;
+
+#if !GW1
+            [DisplayName("Use Emission In Materials")]
+            public bool UseEmission { get; set; } = false;
+#endif
+            [DisplayName("Terrain Decimation (none = 1)")]
+            public float TerrainDecimation { get; set; } = 0.05f;
+        }
+
         private SceneLayer rootLayer;
         private LevelExportSettings exportSettings;
 
@@ -56,18 +56,28 @@ namespace LevelEditorPlugin.Exporters
 
             exportSettings = new LevelExportSettings
             {
-                LODIndex = Config.Get<int>("LODIndex", 0),
-                ExportPrefabs = Config.Get<bool>("ExportPrefabs", true),
-                UseAlpha = Config.Get<bool>("UseAlpha", true),
+                LODIndex = Config.Get("LODIndex", 0),
+                ExportPrefabs = Config.Get("ExportPrefabs", true),
+                UseAlpha = Config.Get("UseAlpha", true),
 #if !GW1
-                UseEmission = Config.Get<bool>("UseEmission", false),
+                UseEmission = Config.Get("UseEmission", false),
 #endif
-                TerrainDecimation = Config.Get<float>("TerrainDecimation", 0.05f)
+                TerrainDecimation = Config.Get("TerrainDecimation", 0.05f)
             };
 
             if (FrostyImportExportBox.Show("Level Export Settings", FrostyImportExportType.Export, exportSettings) == MessageBoxResult.OK)
             {
                 ExportLevel();
+
+                Config.Add("LODIndex", exportSettings.LODIndex);
+                Config.Add("ExportPrefabs", exportSettings.ExportPrefabs);
+                Config.Add("UseAlpha", exportSettings.UseAlpha);
+#if !GW1
+                Config.Add("UseEmission", exportSettings.UseEmission);
+#endif
+                Config.Add("TerrainDecimation", exportSettings.TerrainDecimation);
+
+                Config.Save();
             }
         }
 
@@ -169,7 +179,7 @@ namespace LevelEditorPlugin.Exporters
 #if GW1
                     if (entity is Entities.PointLightEntity light)
 #else
-                    if (entity is Entities.PbrSphereLightEntity light)
+                    if (entity is PbrSphereLightEntity light)
 #endif
                     {
                         EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
@@ -235,7 +245,7 @@ namespace LevelEditorPlugin.Exporters
 
                 dynamic objRootAsset = objAsset.RootObject;
 
-                EbxAssetEntry objMeshAsset = App.AssetManager.GetEbxEntry((objRootAsset.Object.Internal).Mesh.External.FileGuid);
+                EbxAssetEntry objMeshAsset = App.AssetManager.GetEbxEntry(objRootAsset.Object.Internal.Mesh.External.FileGuid);
 
                 string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
 
@@ -257,6 +267,7 @@ namespace LevelEditorPlugin.Exporters
                     var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
 
                     exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportSettings.LODIndex, "binary", meshSet);
+                    App.Logger.Log($"{objMeshAsset.Name}: {objMeshAsset.Type}");
 
                     MeshMaterialCollection materials = new MeshMaterialCollection(
                         App.AssetManager.GetEbx(objMeshAsset),
@@ -439,6 +450,7 @@ namespace LevelEditorPlugin.Exporters
                 var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
 
                 exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportSettings.LODIndex, "binary", meshSet);
+                App.Logger.Log($"{objMeshAsset.Name}: {objMeshAsset.Type}");
 
                 MeshMaterialCollection materials = new MeshMaterialCollection(
                     App.AssetManager.GetEbx(objMeshAsset),

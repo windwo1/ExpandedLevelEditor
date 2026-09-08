@@ -142,6 +142,11 @@ namespace LevelEditorPlugin.Render.Proxies
             BoundingBox = meshBbox.GetBoundingBox();
         }
 
+        public override void UpdateMaterial(RenderCreateState state)
+        {
+            renderData.UpdateMaterials(state);
+        }
+
         public override void Dispose()
         {
             renderData.Dispose();

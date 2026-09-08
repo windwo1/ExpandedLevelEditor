@@ -25,9 +25,10 @@ namespace LevelEditorPlugin.Managers
         #endregion
 
         private EbxAssetEntry meshVarDb;
+        private MeshVariationMaterial materialRef;
         private HashSet<string> managedAssets = new HashSet<string>();
 
-        public void Manage(List<int> bundles, EbxAssetEntry rootEntry)
+        public void Manage(List<int> bundles, EbxAssetEntry rootEntry, MeshVariationMaterial material = null)
         {
             bundles.Sort();
             string cacheKey = $"{string.Join(",", bundles)}:{rootEntry.Name}";
@@ -42,6 +43,8 @@ namespace LevelEditorPlugin.Managers
             }
 
             FindMeshVarDb(bundles);
+
+            materialRef = material;
             Manage(bundles, rootEntry, new HashSet<EbxAssetEntry>());
         }
 
@@ -108,16 +111,27 @@ namespace LevelEditorPlugin.Managers
 
                 foreach (var matRef in mesh.Materials)
                 {
-                    if (mv == null)
-                        break;
-
                     var mat = matRef.Internal as FrostySdk.Ebx.MeshMaterial;
+                    if (materialRef == null)
+                    {
+                        if (mv == null)
+                            break;
 
-                    int idx = mv.Materials.FindIndex(a => a.MaterialGuid == mat.GetInstanceGuid().ExportedGuid);
-                    if (idx == -1)
-                        continue;
+                        int idx = mv.Materials.FindIndex(a => a.MaterialGuid == mat.GetInstanceGuid().ExportedGuid);
+                        if (idx == -1)
+                            continue;
 
-                    dynamic texParams = mv.Materials[idx].TextureParameters;
+                        ProcessMaterial(mv.Materials[idx], mat);
+                    }
+                    else
+                    {
+                        ProcessMaterial(materialRef, mat);
+                    }
+                }
+
+                void ProcessMaterial(MeshVariationMaterial material, FrostySdk.Ebx.MeshMaterial mat)
+                {
+                    dynamic texParams = material.TextureParameters;
                     var matTexParams = new List<TextureShaderParameter>();
 
                     foreach (var texParam in texParams)
@@ -251,7 +265,7 @@ namespace LevelEditorPlugin.Managers
         private bool HasSubLevelBundles(AssetEntry entry)
         {
             return entry.Bundles.Any(b => App.AssetManager.GetBundleEntry(b).Type == BundleType.SubLevel)
-                || entry.AddedBundles.Any(b => App.AssetManager.GetBundleEntry(b).Type == BundleType.SubLevel);
+                || (entry.Bundles.Count == 0 && entry.IsAdded); // if it's newly created
         }
     }
 }

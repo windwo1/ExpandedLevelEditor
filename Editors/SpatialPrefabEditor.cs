@@ -10,7 +10,7 @@ using FrostySdk.IO;
 using FrostySdk.Resources;
 using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Entities;
-using LevelEditorPlugin.Exporters;
+using LevelEditorPlugin.Editors.Exporters;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
 using LevelEditorPlugin.Render;

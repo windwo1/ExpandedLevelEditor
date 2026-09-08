@@ -1,14 +1,15 @@
-﻿using Frosty.Core.Viewport;
+﻿using Frosty.Core.Screens;
+using Frosty.Core.Viewport;
+using LevelEditorPlugin.Entities;
+using MeshSetPlugin.ShaderData;
+using SharpDX;
 using SharpDX.Direct3D11;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SharpDX;
-using Frosty.Core.Screens;
-using LevelEditorPlugin.Entities;
-using System.Diagnostics.Contracts;
 
 namespace LevelEditorPlugin.Render.Proxies
 {
@@ -63,6 +64,10 @@ namespace LevelEditorPlugin.Render.Proxies
         }
 
         public virtual void SetSelected(RenderCreateState state, bool newSelected)
+        {
+        }
+
+        public virtual void UpdateMaterial(RenderCreateState state)
         {
         }
 

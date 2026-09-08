@@ -10,8 +10,9 @@ using FrostySdk.Interfaces;
 using FrostySdk.IO;
 using FrostySdk.Managers;
 using LevelEditorPlugin.Assets;
+using LevelEditorPlugin.Editors.Exporters;
+using LevelEditorPlugin.Editors.Importers;
 using LevelEditorPlugin.Entities;
-using LevelEditorPlugin.Exporters;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
 using LevelEditorPlugin.Screens;
@@ -26,6 +27,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -97,6 +99,25 @@ namespace LevelEditorPlugin.Editors
             return false;
         }
 
+        public static object CreateEntityData(Type entityDataType, EbxAsset asset)
+        {
+            var data = Activator.CreateInstance(entityDataType);
+
+            Guid guid = FrostySdk.Utils.GenerateDeterministicGuid(asset.Objects, entityDataType.Name, asset.FileGuid);
+            ((dynamic)data).SetInstanceGuid(new AssetClassGuid(guid, -1));
+
+            try
+            {
+                byte[] array = guid.ToByteArray();
+                uint flags = (uint)((int)(array[3] & 0x01) << 24 | (int)array[2] << 16 | (int)array[1] << 8 | (int)array[0]);
+
+                ((dynamic)data).Flags = flags;
+            }
+            catch (RuntimeBinderException) { }
+
+            return data;
+        }
+
         public static Vector3 GetPositionInFront(this BaseCamera cam, float distance)
         {
             var offset = new Vector3(0, -2, 0);
@@ -150,6 +171,9 @@ namespace LevelEditorPlugin.Editors
     public class LevelEditor : SpatialEditor
     {
         private const string PART_Renderer = "PART_Renderer";
+
+        public EbxAssetEntry AddedLayer;
+        public SceneLayer AddedSceneLayer;
 
         private FrostyViewport viewport;
 
@@ -229,7 +253,9 @@ namespace LevelEditorPlugin.Editors
                 new DockingToolbarItem("", "Show/Hide terrain layers tab", "Images/Terrain.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new TerrainLayersViewModel(this))), DockManager, "UID_LevelEditor_TerrainLayers"),
                 new DockingToolbarItem("", "Show/Hide timeline editor", "Images/Timeline.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new TimelineViewModel(this))), DockManager, "UID_LevelEditor_Timeline"),
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
+                new DividerToolbarItem(),
                 new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => new LevelExporter(RootLayer) )),
+                new RegularToolbarItem("", "Import a level from exported XML", "LevelEditorPlugin/Images/Import.png", new RelayCommand((o) => new LevelImporter(ref rootLayer, this, editingWorld) )),
                 new DividerToolbarItem(),
                 new RegularToolbarItem("Add Object", "Add a new object to this level", "LevelEditorPlugin/Images/Add.png", new RelayCommand((o) => AddEntityFromButton() )),
                 new RegularToolbarItem("", "Duplicate the selected object", "LevelEditorPlugin/Images/Copy.png", new RelayCommand((o) => DuplicateEntity() )),
@@ -298,6 +324,26 @@ namespace LevelEditorPlugin.Editors
             DockManager.AddItemOnLoad(new TerrainLayersViewModel(this));
             DockManager.AddItemOnLoad(new SchematicsViewModel(this, rootLayer));
 
+            var layers = new List<SceneLayer>();
+            RootLayer.CollectLayers(layers);
+            foreach (var item in layers)
+            {
+                if (AddedLayer != null && AddedSceneLayer != null)
+                    break;
+
+                if (item.LayerName == "static_instances" || !item.IsVisible)
+                    continue;
+
+                var entities = new List<Entities.Entity>();
+                item.CollectEntities(entities);
+                foreach (var entity in entities.Where(e => e is ReferenceObject))
+                {
+                    AddedLayer = App.AssetManager.GetEbxEntry(LoadedAssetManager.Instance.GetEbxAsset(entity.Owner.FileGuid).FileGuid);
+                    AddedSceneLayer = item;
+                    break;
+                }
+            }
+
             screen.OnKeyUp += Screen_OnKeyUp;
         }
 
@@ -324,8 +370,8 @@ namespace LevelEditorPlugin.Editors
             var window = new AddObjectWindow();
             window.Show();
 
-            var pos = screen.camera.GetPositionInFront(distance: 8f);
-            window.SelectedAsset += (s, e) => AddEntity(e.Asset, e.Count, Matrix.Translation(pos));
+            var pos = screen.camera.GetPositionInFront(distance: 8.0f);
+            window.SelectedAsset += (s, e) => AddEntities(e.Asset, e.Count, Matrix.Translation(pos), manageBundles: Config.Get<bool>("BundleManagerEnabled", false));
         }
 
         private void DuplicateEntity()
@@ -343,7 +389,7 @@ namespace LevelEditorPlugin.Editors
                 var guid = refObj.Data.Blueprint.External.FileGuid;
                 var transform = refObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, refObj.Layer, refObj.Parent);
+                AddEntities(App.AssetManager.GetEbxEntry(guid), amount, transform, refObj.Layer, refObj.Parent, Config.Get<bool>("BundleManagerEnabled", false));
                 return;
             }
             else if (selectedEntity is StaticModelGroupElementEntity staticObj)
@@ -351,22 +397,41 @@ namespace LevelEditorPlugin.Editors
                 var guid = staticObj.Data.Blueprint.External.FileGuid;
                 var transform = staticObj.GetTransform();
 
-                AddEntity(App.AssetManager.GetEbxEntry(guid), amount, transform, staticObj.Layer, staticObj.Parent.Parent);
+                AddEntities(App.AssetManager.GetEbxEntry(guid), amount, transform, staticObj.Layer, staticObj.Parent.Parent, Config.Get<bool>("BundleManagerEnabled", false));
                 return;
             }
 
             App.Logger.LogWarning("Cannot duplicate entity of type " + selectedEntity.GetType().Name);
         }
 
-        private void AddEntity(EbxAssetEntry asset, int count, Matrix transform, SceneLayer addedLayer = null, Entities.Entity parentOverride = null)
+        public List<Entities.Entity> AddEntities(EbxAssetEntry asset, int count, Matrix transform, 
+            SceneLayer addedLayer = null, Entities.Entity parentOverride = null, 
+            bool manageBundles = true, bool showTaskWindow = true, bool selectEntity = true)
         {
             int maxCount = count;
 
-            FrostyTaskWindow.Show("Adding " + asset.DisplayName, "", (task) =>
+            if (showTaskWindow)
             {
+                List<Entities.Entity> entities = null;
+
+                FrostyTaskWindow.Show("Adding " + asset.DisplayName, "", (task) =>
+                {
+                    entities = AddEntityInternal(task);
+                });
+
+                return entities;
+            }
+            else
+            {
+                return AddEntityInternal(null);
+            }
+
+            List<Entities.Entity> AddEntityInternal(FrostyTaskWindow task)
+            {
+                var entities = new List<Entities.Entity>();
                 while (count > 0)
                 {
-                    task.Update("Adding Objects");
+                    task?.Update("Adding Objects");
 
                     EbxAsset layerAsset = null;
                     Entities.Entity owner = null;
@@ -375,16 +440,25 @@ namespace LevelEditorPlugin.Editors
 
                     if (addedLayer != null)
                     {
-                        var entities = new List<Entities.Entity>();
-                        addedLayer.CollectEntities(entities);
+                        Guid layerGuid = addedLayer.Entity.FileGuid;
+                        owner = addedLayer.Entity.Owner;
+                        parent = addedLayer.Entity.Parent;
 
-                        if (entities.Count != 0)
+                        if (addedLayer.Entity is WorldPartReferenceObject worldPart)
                         {
-                            layerAsset = LoadedAssetManager.Instance.GetEbxAsset(entities[0].Owner.FileGuid);
-                            owner = entities[0].Owner;
-                            parent = entities[0].Parent;
-                            layer = addedLayer;
+                            layerGuid = worldPart.Data.Blueprint.External.FileGuid;
+                            owner = worldPart;
+                            parent = worldPart;
                         }
+                        if (addedLayer.Entity is SubWorldReferenceObject subWorld)
+                        {
+                            layerGuid = subWorld.Data.Blueprint.External.FileGuid;
+                            owner = subWorld;
+                            parent = subWorld;
+                        }
+
+                        layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerGuid);
+                        layer = addedLayer;
                     }
                     else
                     {
@@ -400,10 +474,10 @@ namespace LevelEditorPlugin.Editors
                             if (item.LayerName == "static_instances" || !item.IsVisible)
                                 continue;
 
-                            var entities = new List<Entities.Entity>();
-                            item.CollectEntities(entities);
+                            var childEntities = new List<Entities.Entity>();
+                            item.CollectEntities(childEntities);
 
-                            foreach (Entities.Entity layerEntity in entities.Where(en => en is ReferenceObject))
+                            foreach (Entities.Entity layerEntity in childEntities.Where(en => en is ReferenceObject))
                             {
                                 layerAsset = LoadedAssetManager.Instance.GetEbxAsset(layerEntity.Owner.FileGuid);
                                 owner = layerEntity.Owner;
@@ -420,12 +494,12 @@ namespace LevelEditorPlugin.Editors
                     if (layerAsset == null || owner == null || parent == null || layer == null)
                     {
                         App.Logger.LogError("Failed to find a layer to add to");
-                        return;
+                        return null;
                     }
 
                     string prefabName = asset.Name;
 
-                    var prefabObj = CreateEntityData(typeof(ReferenceObjectData), layerAsset) as ReferenceObjectData;
+                    var prefabObj = Utils.CreateEntityData(typeof(ReferenceObjectData), layerAsset) as ReferenceObjectData;
 
                     layerAsset.AddObject(prefabObj);
 
@@ -454,10 +528,6 @@ namespace LevelEditorPlugin.Editors
                     prefabObj.CastEnvmapEnable = true;
 #endif
 #endif
-
-                    layer.AddEntity(entity);
-                    screen.AddEntity(entity, true);
-
                     try
                     {
                         // if flags aren't 1, it won't show up in game
@@ -467,31 +537,25 @@ namespace LevelEditorPlugin.Editors
 
                     var layerEntry = App.AssetManager.GetEbxEntry(layerAsset.FileGuid);
 
-                    if (count == maxCount && Config.Get<bool>("BundleManagerEnabled", false))
+                    if (count == maxCount && manageBundles)
                     {
-                        task.Update("Managing Bundles");
+                        task?.Update("Managing Bundles");
                         BundleManager.Instance.Manage(layerEntry.EnumerateBundles().ToList(), App.AssetManager.GetEbxEntry(prefabName));
                     }
 
+                    AddedLayer = layerEntry;
+
                     App.AssetManager.ModifyEbx(layerEntry.Name, layerAsset);
 
+                    layer.AddEntity(entity);
+                    screen.AddEntity(entity, selectEntity);
+
+                    entities.Add(entity);
                     count--;
                 }
-            });
-        }
 
-        private object CreateEntityData(Type entityDataType, EbxAsset asset)
-        {
-            DataBusPeer data = Activator.CreateInstance(entityDataType) as DataBusPeer;
-
-            Guid guid = FrostySdk.Utils.GenerateDeterministicGuid(asset.Objects, entityDataType.Name, asset.FileGuid);
-            data.SetInstanceGuid(new AssetClassGuid(guid, -1));
-
-            byte[] array = guid.ToByteArray();
-            uint flags = (uint)((int)(array[3] & 0x01) << 24 | (int)array[2] << 16 | (int)array[1] << 8 | (int)array[0]);
-
-            data.Flags = flags;
-            return data;
+                return entities;
+            }
         }
 
         private void DeleteEntity(Entities.Entity entity)

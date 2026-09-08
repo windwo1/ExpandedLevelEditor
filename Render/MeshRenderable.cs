@@ -13,6 +13,11 @@ using System.Collections.Generic;
 using System.IO;
 using TexturePlugin;
 using D3D11 = SharpDX.Direct3D11;
+using FallbackVertex = Frosty.Core.Viewport.FallbackVertex;
+using MeshMaterial = Frosty.Core.Viewport.MeshMaterial;
+using MeshMaterialCollection = Frosty.Core.Viewport.MeshMaterialCollection;
+using MeshRenderBase = Frosty.Core.Viewport.MeshRenderBase;
+using MeshRenderPath = Frosty.Core.Viewport.MeshRenderPath;
 using MeshSet = LevelEditorPlugin.Resources.MeshSet;
 using MeshSetLod = LevelEditorPlugin.Resources.MeshSetLod;
 using MeshSetSection = LevelEditorPlugin.Resources.MeshSetSection;
@@ -108,13 +113,17 @@ namespace LevelEditorPlugin.Render
         private MeshSetLod meshLod;
 
         private MeshMaterialCollection materials;
+        private Guid meshGuid;
 
         private List<int> hitProxyIndices = new List<int>();
 
-        public MeshLodRenderable(RenderCreateState state, MeshSetLod lod, MeshMaterialCollection materials, MeshSetPlugin.Render.MeshRenderSkeleton skeleton)
+        public MeshLodRenderable(RenderCreateState state, MeshSetLod lod, Guid meshGuid, MeshSetPlugin.Render.MeshRenderSkeleton skeleton)
         {
             meshLod = lod;
+
+            var materials = new MeshMaterialCollection(App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(meshGuid)), new FrostySdk.Ebx.PointerRef());
             this.materials = materials;
+            this.meshGuid = meshGuid;
 
             byte[] chunkData = GetChunkData();
             using (DataStream chunkStream = new DataStream((int)lod.IndexBufferSize, false, true))
@@ -239,6 +248,17 @@ namespace LevelEditorPlugin.Render
 
         public void SetMaterials(RenderCreateState state, MeshMaterialCollection materials)
         {
+            foreach (MeshSectionRenderable section in sections)
+            {
+                if (section.MeshSection.MaterialId < materials.Count)
+                    UpdateSectionMaterial(state, section, materials[section.MeshSection.MaterialId]);
+            }
+        }
+
+        public void UpdateMaterials(RenderCreateState state)
+        {
+            materials = new MeshMaterialCollection(App.AssetManager.GetEbx(App.AssetManager.GetEbxEntry(meshGuid)), new FrostySdk.Ebx.PointerRef());
+
             foreach (MeshSectionRenderable section in sections)
             {
                 if (section.MeshSection.MaterialId < materials.Count)
@@ -822,7 +842,7 @@ namespace LevelEditorPlugin.Render
         public float CullScreenArea { get; private set; } = 0.0f;
 
 
-        public MeshRenderable(RenderCreateState state, MeshSet meshSet, MeshMaterialCollection materials, FrostySdk.Ebx.MeshLodGroup lodGroup, MeshRenderSkeleton skeleton)
+        public MeshRenderable(RenderCreateState state, MeshSet meshSet, Guid meshGuid, FrostySdk.Ebx.MeshLodGroup lodGroup, MeshRenderSkeleton skeleton)
         {
             LodDistances[0] = lodGroup.Lod1Distance;
             LodDistances[1] = lodGroup.Lod2Distance;
@@ -835,7 +855,7 @@ namespace LevelEditorPlugin.Render
 
             foreach (MeshSetLod lod in meshSet.Lods)
             {
-                MeshLodRenderable renderLod = new MeshLodRenderable(state, lod, materials, skeleton);
+                MeshLodRenderable renderLod = new MeshLodRenderable(state, lod, meshGuid, skeleton);
                 lods.Add(renderLod);
             }
 
@@ -849,6 +869,12 @@ namespace LevelEditorPlugin.Render
         {
             foreach (MeshLodRenderable lod in lods)
                 lod.SetMaterials(state, materials);
+        }
+
+        public void UpdateMaterials(RenderCreateState state)
+        {
+            foreach (MeshLodRenderable lod in lods)
+                lod.UpdateMaterials(state);
         }
 
         public MeshLodRenderable GetLod(int idx)

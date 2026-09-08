@@ -205,6 +205,27 @@ namespace LevelEditorPlugin.Layers
             }
         }
 
+        public void ClearLayers()
+        {
+            var layers = new List<SceneLayer>();
+            CollectLayers(layers);
+
+            foreach (SceneLayer layer in ChildLayers)
+            {
+                layer.IsVisible = false;
+            }
+
+            ChildLayers.Clear();
+            LayerModified?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void AddLayer(SceneLayer layer)
+        {
+            ChildLayers.Add(layer);
+            layer.IsVisible = IsVisible;
+            LayerModified?.Invoke(this, EventArgs.Empty);
+        }
+
         private void AddComponents(Entities.IComponentEntity componentEntity)
         {
             foreach (Entity component in componentEntity.Components)
@@ -219,5 +240,6 @@ namespace LevelEditorPlugin.Layers
 
         public event EventHandler<LayerVisibilityChangedEventArgs> VisibilityChanged;
         public event EventHandler<LayerSelectionChangedEventArgs> SelectionChanged;
+        public event EventHandler LayerModified;
     }
 }

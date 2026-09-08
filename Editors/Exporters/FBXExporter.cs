@@ -4,7 +4,7 @@ using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
 using FrostySdk;
 using FrostySdk.IO;
-using LevelEditorPlugin.Exporters;
+using LevelEditorPlugin.Editors.Importers;
 using MeshSetPlugin.Fbx;
 using MeshSetPlugin.Resources;
 using SharpDX;
@@ -16,7 +16,7 @@ using System.Linq;
 using System.Reflection;
 using Buffer = SharpDX.Direct3D11.Buffer;
 
-namespace LevelEditorPlugin.Exporters
+namespace LevelEditorPlugin.Editors.Exporters
 {
     public class FBXExporter
     {
@@ -76,7 +76,7 @@ namespace LevelEditorPlugin.Exporters
                     {
                         foreach (MeshSetSection section in lod.Sections)
                         {
-                            m_totalExportCount += (section.Name != "") ? 1 : 0;
+                            m_totalExportCount += section.Name != "" ? 1 : 0;
                         }
                     }
                 }
@@ -344,7 +344,7 @@ namespace LevelEditorPlugin.Exporters
                 Vector3 euler = SharpDXUtils.ExtractEulerAngles(boneMatrix);
 
                 FbxSkeleton skeletonAttribute = new FbxSkeleton(scene, skeletonAsset.BoneNames[boneIdx]);
-                skeletonAttribute.SetSkeletonType((boneIdx == 0) ? FbxSkeleton.EType.eRoot : FbxSkeleton.EType.eLimbNode);
+                skeletonAttribute.SetSkeletonType(boneIdx == 0 ? FbxSkeleton.EType.eRoot : FbxSkeleton.EType.eLimbNode);
                 skeletonAttribute.Size = 1.0;
 
                 FbxNode boneNode = new FbxNode(scene, skeletonAsset.BoneNames[boneIdx]);
@@ -371,7 +371,7 @@ namespace LevelEditorPlugin.Exporters
 
                 foreach (dynamic bone in skinnedProcAnim.Bones)
                 {
-                    string boneName = "PROC_Bone" + (procIndex++).ToString();
+                    string boneName = "PROC_Bone" + procIndex++.ToString();
 
                     FbxNode parentBone = boneNodes[bone.ParentIndex];
                     Matrix boneMatrix = new Matrix(
@@ -408,11 +408,11 @@ namespace LevelEditorPlugin.Exporters
         /// </summary>
         private void FBXCreateMesh(FbxScene scene, MeshSetLod lod, List<FbxNode> boneNodes)
         {
-            int indexSize = (lod.IndexUnitSize / 8);
+            int indexSize = lod.IndexUnitSize / 8;
 
             FbxNode meshNode = new FbxNode(scene, lod.ShortName);
 
-            Stream chunkStream = (lod.ChunkId != Guid.Empty)
+            Stream chunkStream = lod.ChunkId != Guid.Empty
                 ? App.AssetManager.GetChunk(App.AssetManager.GetChunkEntry(lod.ChunkId))
                 : new MemoryStream(lod.InlineData);
 
@@ -425,7 +425,7 @@ namespace LevelEditorPlugin.Exporters
                         continue;
                     }
 
-                    m_task.Update(progress: (m_currentProgress++ / (double)m_totalExportCount) * 100.0);
+                    m_task.Update(progress: m_currentProgress++ / (double)m_totalExportCount * 100.0);
 
                     FbxNode actor = FBXExportSubObject(scene, section, lod.VertexBufferSize, indexSize, reader);
 
@@ -492,11 +492,11 @@ namespace LevelEditorPlugin.Exporters
                     int currentStride = 0;
                     foreach (GeometryDeclarationDesc.Element elem in section.GeometryDeclDesc[0].Elements)
                     {
-                        if (currentStride >= totalStride && currentStride < (totalStride + stream.VertexStride))
+                        if (currentStride >= totalStride && currentStride < totalStride + stream.VertexStride)
                         {
                             if (elem.Usage == VertexElementUsage.BoneIndices || elem.Usage == VertexElementUsage.BoneIndices2 || elem.Usage == VertexElementUsage.BoneWeights || elem.Usage == VertexElementUsage.BoneWeights2)
                             {
-                                reader.Position = section.VertexOffset + (totalStride * section.VertexCount) + (i * stream.VertexStride) + (currentStride - totalStride);
+                                reader.Position = section.VertexOffset + totalStride * section.VertexCount + i * stream.VertexStride + (currentStride - totalStride);
                                 if (elem.Usage == VertexElementUsage.BoneIndices)
                                 {
                                     if (elem.Format == VertexElementFormat.Byte4 || elem.Format == VertexElementFormat.Byte4N || elem.Format == VertexElementFormat.UByte4 || elem.Format == VertexElementFormat.UByte4N)
@@ -576,7 +576,7 @@ namespace LevelEditorPlugin.Exporters
                         // account for proc bones
                         if ((subIndex & 0x8000) != 0)
                         {
-                            subIndex = (subIndex - 0x8000) + m_boneCount;
+                            subIndex = subIndex - 0x8000 + m_boneCount;
                         }
                         else
                         {
@@ -717,18 +717,18 @@ namespace LevelEditorPlugin.Exporters
                             {
                                 unsafe
                                 {
-                                    double* ptr = (double*)(buffer);
+                                    double* ptr = (double*)buffer;
                                     if (elem.Format == VertexElementFormat.Float3)
                                     {
-                                        ptr[(i * 4) + 0] = reader.ReadFloat();
-                                        ptr[(i * 4) + 1] = reader.ReadFloat();
-                                        ptr[(i * 4) + 2] = reader.ReadFloat();
+                                        ptr[i * 4 + 0] = reader.ReadFloat();
+                                        ptr[i * 4 + 1] = reader.ReadFloat();
+                                        ptr[i * 4 + 2] = reader.ReadFloat();
                                     }
                                     else if (elem.Format == VertexElementFormat.Half3 || elem.Format == VertexElementFormat.Half4)
                                     {
-                                        ptr[(i * 4) + 0] = HalfUtils.Unpack(reader.ReadUShort());
-                                        ptr[(i * 4) + 1] = HalfUtils.Unpack(reader.ReadUShort());
-                                        ptr[(i * 4) + 2] = HalfUtils.Unpack(reader.ReadUShort());
+                                        ptr[i * 4 + 0] = HalfUtils.Unpack(reader.ReadUShort());
+                                        ptr[i * 4 + 1] = HalfUtils.Unpack(reader.ReadUShort());
+                                        ptr[i * 4 + 2] = HalfUtils.Unpack(reader.ReadUShort());
 
                                         if (elem.Format == VertexElementFormat.Half4)
                                         {
@@ -962,8 +962,8 @@ namespace LevelEditorPlugin.Exporters
                                     }
                                     else
                                     {
-                                        x = (reader.ReadShort() / (float)short.MaxValue) * 0.5f + 0.5f;
-                                        y = (reader.ReadShort() / (float)short.MaxValue) * 0.5f + 0.5f;
+                                        x = reader.ReadShort() / (float)short.MaxValue * 0.5f + 0.5f;
+                                        y = reader.ReadShort() / (float)short.MaxValue * 0.5f + 0.5f;
                                     }
 
                                     layerElemUV[uvMapping[elem.Usage]].DirectArray.Add(x, y);
@@ -1215,13 +1215,13 @@ namespace LevelEditorPlugin.Exporters
                 cs.Dispose();
             }
 
-            reader.Position = indicesOffset + (section.StartIndex * indexSize);
+            reader.Position = indicesOffset + section.StartIndex * indexSize;
             for (int i = 0; i < section.PrimitiveCount; i++)
             {
                 fmesh.BeginPolygon(0);
                 for (int j = 0; j < 3; j++)
                 {
-                    int index = (int)((indexSize == 2)
+                    int index = (int)(indexSize == 2
                         ? reader.ReadUShort()
                         : reader.ReadUInt()
                         );

@@ -39,7 +39,7 @@ using LevelEditorPlugin;
 
 [assembly: RegisterAssetDefinition("LevelData", typeof(LevelDataAssetDefinition))]
 [assembly: RegisterAssetDefinition("DetachedSubWorldData", typeof(DetachedSubWorldDataAssetDefinition))]
-[assembly: RegisterAssetDefinition("ObjectBlueprint", typeof(ObjectBlueprintAssetDefinition))]
+//[assembly: RegisterAssetDefinition("ObjectBlueprint", typeof(ObjectBlueprintAssetDefinition))]
 [assembly: RegisterAssetDefinition("LogicPrefabBlueprint", typeof(LogicPrefabAssetDefinition))]
 [assembly: RegisterAssetDefinition("SpatialPrefabBlueprint", typeof(SpatialPrefabAssetDefinition))]
 

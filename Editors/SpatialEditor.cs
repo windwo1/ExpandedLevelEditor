@@ -128,6 +128,11 @@ namespace LevelEditorPlugin.Editors
             }
         }
 
+        public void UpdateMeshMaterials(Entity entity)
+        {
+            screen.UpdateMeshMaterials(entity);
+        }
+
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();

@@ -325,6 +325,8 @@ namespace LevelEditorPlugin.Editors
         private RoutedCommand undoCommand;
         private bool loaded;
 
+        protected UndoManager undoManager;
+
         private readonly string[] resources =
         {
             "Shaders/TerrainShader.bin",
@@ -349,8 +351,10 @@ namespace LevelEditorPlugin.Editors
             "Resources/Textures/TranslateGizmoSelected.dds",
         };
 
-        public ToolbarAssetEditor(ILogger inLogger) : base(inLogger)
+        public ToolbarAssetEditor(ILogger inLogger) 
+            : base(inLogger)
         {
+            undoManager = UndoManager.Create();
         }
         
         public override EbxAsset GetDependentObject(Guid guid)
@@ -372,6 +376,8 @@ namespace LevelEditorPlugin.Editors
 
         private void ToolbarAssetEditor_Loaded(object sender, RoutedEventArgs e)
         {
+            UndoManager.SetCurrent(undoManager);
+
             if (!loaded)
             {
                 CopyResources();

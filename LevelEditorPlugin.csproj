@@ -228,6 +228,7 @@
     <Resource Include="Images\Copy.png" />
     <Resource Include="Images\CurvedWire.png" />
     <Resource Include="Images\GameView.png" />
+    <Resource Include="Images\Import.png" />
     <Resource Include="Images\Input.png" />
     <Resource Include="Images\Interface.png" />
     <Resource Include="Images\Timeline.png" />
@@ -347,6 +348,7 @@
   
   <ItemGroup>
     <Folder Include="GameSpecific" />
+    <Folder Include="Blender\" />
   </ItemGroup>
   
   <ItemGroup>

@@ -1,5 +1,6 @@
 ﻿using Frosty.Core;
 using FrostySdk.Attributes;
+using FrostySdk.Ebx;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,9 +22,12 @@ namespace LevelEditorPlugin
         [Description("Enables the Detached SubWorld Editor for assets of type 'DetachedSubWorldData'")]
         public bool SubWorldEditorEnabled { get; set; } = false;
 
+        // hidden/removed for now since it was overwriting other plugin editors, since any blueprint inherits from ObjectBlueprint
+        // mesh set plugin can be used to view objects/meshes anyway
         [Category("Editors")]
         [DisplayName("Object Blueprint Editor Enabled")]
         [Description("Enables the Object Blueprint Editor for assets of type 'ObjectBlueprint'")]
+        [IsHidden]
         public bool ObjectBlueprintEditorEnabled { get; set; } = false;
 
         [Category("Editors")]
@@ -65,6 +69,16 @@ namespace LevelEditorPlugin
         [Description("The decimation value that will be used on terrain in Blender when importing, no decimation = 1. This can sometimes leave seams/gaps in the terrain")]
         public float TerrainDecimation { get; set; } = 0.05f;
 
+        [Category("Importing")]
+        [DisplayName("Overwrite Level")]
+        [Description("Whether the level will be overwritten with the import")]
+        public bool OverwriteLevel { get; set; } = true;
+
+        [Category("Importing")]
+        [DisplayName("Object Offset")]
+        [Description("The offset for all objects that are imported")]
+        public Vec3 ObjectOffset { get; set; }
+
         public override void Load()
         {
             LevelEditorEnabled = Config.Get<bool>("LevelEditorEnabled", true);
@@ -73,7 +87,7 @@ namespace LevelEditorPlugin
             LogicPrefabEditorEnabled = Config.Get<bool>("LogicPrefabEditorEnabled", false);
             SpatialPrefabEditorEnabled = Config.Get<bool>("SpatialPrefabEditorEnabled", true);
 
-            BundleManagerEnabled = Config.Get<bool>("BundleManagerEnabled", true);
+            BundleManagerEnabled = Config.Get<bool>("BundleManagerEnabled", false);
 
             LODIndex = Config.Get<int>("LODIndex", 0);
             ExportPrefabs = Config.Get<bool>("ExportPrefabs", true);
@@ -82,6 +96,9 @@ namespace LevelEditorPlugin
             UseEmission = Config.Get<bool>("UseEmission", false);
 #endif
             TerrainDecimation = Config.Get<float>("TerrainDecimation", 0.05f);
+
+            OverwriteLevel = Config.Get<bool>("OverwriteLevel", true);
+            ObjectOffset = Config.Get<Vec3>("ObjectOffset", new Vec3());
         }
 
         public override void Save()
@@ -101,6 +118,9 @@ namespace LevelEditorPlugin
             Config.Add("UseEmission", UseEmission);
 #endif
             Config.Add("TerrainDecimation", TerrainDecimation);
+
+            Config.Add("OverwriteLevel", OverwriteLevel);
+            Config.Add("ObjectOffset", ObjectOffset);
 
             Config.Save();
         }

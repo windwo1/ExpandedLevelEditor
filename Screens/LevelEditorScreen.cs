@@ -676,6 +676,18 @@ namespace LevelEditorPlugin.Screens
             (camera as FirstPersonCamera).SetViewParams(offset * new Vector3(-1, 1, 1), center * new Vector3(-1, 1, 1));
         }
 
+        public void UpdateMeshMaterials(Entity entity)
+        {
+            renderTasks.Enqueue((state) =>
+            {
+                var proxy = proxies.FirstOrDefault(p => p.OwnerEntity.Owner == entity);
+                if (proxy == null)
+                    return;
+
+                proxy.UpdateMaterial(state);
+            });
+        }
+
         protected override void RenderMeshes(MeshRenderPath renderPath, List<MeshRenderInstance> meshList)
         {
             if (renderPath == MeshRenderPath.Selection && selectedProxies.Count > 0)

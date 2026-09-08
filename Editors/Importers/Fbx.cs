@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace LevelEditorPlugin.Exporters
+namespace LevelEditorPlugin.Editors.Importers
 {
     internal static class Native
     {
@@ -37,9 +37,9 @@ namespace LevelEditorPlugin.Exporters
             string Str = "";
             byte* b = (byte*)InPtr;
 
-            while ((*b) != 0x00)
+            while (*b != 0x00)
             {
-                Str += (char)(*b);
+                Str += (char)*b;
                 b++;
             }
 
@@ -456,7 +456,7 @@ namespace LevelEditorPlugin.Exporters
             get
             {
                 IntPtr p = GetSceneInfoInternal(pHandle);
-                return (p != IntPtr.Zero) ? new FbxDocumentInfo(GetSceneInfoInternal(pHandle)) : null;
+                return p != IntPtr.Zero ? new FbxDocumentInfo(GetSceneInfoInternal(pHandle)) : null;
             }
             set => SetSceneInfoInternal(pHandle, value.Handle);
         }
@@ -566,7 +566,7 @@ namespace LevelEditorPlugin.Exporters
 
         public bool Initialize(string pFileName, int pFileFormat = -1, FbxIOSettings pIOSettings = null)
         {
-            IntPtr Ptr = (pIOSettings != null) ? pIOSettings.Handle : IntPtr.Zero;
+            IntPtr Ptr = pIOSettings != null ? pIOSettings.Handle : IntPtr.Zero;
             return InitializeInternal(pHandle, pFileName, pFileFormat, Ptr);
         }
 
@@ -1088,7 +1088,7 @@ namespace LevelEditorPlugin.Exporters
         [DllImport("thirdparty/libfbxsdk", EntryPoint = "?Add@FbxPose@fbxsdk@@QEAAHPEAVFbxNode@2@AEBVFbxMatrix@2@_N2@Z")]
         private static extern int AddInternal(IntPtr pHandle, IntPtr pNode, IntPtr pMatrix, bool pLocalMatrix, bool pMultipleBindPose);
 
-        public bool IsBindPose { get { unsafe { return *((char*)mType) == 'b'; } } set => SetIsBindPoseInternal(pHandle, value);
+        public bool IsBindPose { get { unsafe { return *(char*)mType == 'b'; } } set => SetIsBindPoseInternal(pHandle, value);
         }
         private IntPtr mType;
 
@@ -2052,7 +2052,7 @@ namespace LevelEditorPlugin.Exporters
             }
 
             IntPtr ptr = FbxUtils.FbxMalloc(sizeToAlloc);
-            IntPtr ptrPtr = new IntPtr((void*)&ptr);
+            IntPtr ptrPtr = new IntPtr(&ptr);
             GetAtInternal(pHandle, index, ptrPtr, type);
             ptrPtr = IntPtr.Zero;
 
@@ -2084,7 +2084,7 @@ namespace LevelEditorPlugin.Exporters
         public static unsafe string Get(IntPtr InHandle)
         {
             IntPtr Ptr = new IntPtr(*(long*)InHandle);
-            return (Ptr != IntPtr.Zero) ? FbxUtils.IntPtrToString(Ptr) : "";
+            return Ptr != IntPtr.Zero ? FbxUtils.IntPtrToString(Ptr) : "";
         }
     }
 
@@ -2103,9 +2103,9 @@ namespace LevelEditorPlugin.Exporters
 
         public static unsafe SharpDX.Vector3 Get(IntPtr inHandle)
         {
-            float x = (float)*((double*)(inHandle.ToInt64()));
-            float y = (float)*((double*)(inHandle.ToInt64() + 8));
-            float z = (float)*((double*)(inHandle.ToInt64() + 16));
+            float x = (float)*(double*)inHandle.ToInt64();
+            float y = (float)*(double*)(inHandle.ToInt64() + 8);
+            float z = (float)*(double*)(inHandle.ToInt64() + 16);
 
             return new SharpDX.Vector3(x, y, z);
         }
@@ -2142,7 +2142,7 @@ namespace LevelEditorPlugin.Exporters
             EFbxType type = EFbxType.eFbxDouble;
 
             IntPtr ptr = FbxUtils.FbxMalloc(8);
-            Marshal.WriteInt64(ptr, *((long*)&value));
+            Marshal.WriteInt64(ptr, *(long*)&value);
 
             SetInternal(inHandle, ptr, ref type, true);
             FbxUtils.FbxFree(ptr);
@@ -2172,7 +2172,7 @@ namespace LevelEditorPlugin.Exporters
             IntPtr ptr = IntPtr.Zero;
 
             GetInternal(inHandle, ref ptr, ref type);
-            return *((double*)&ptr);
+            return *(double*)&ptr;
         }
     }
 
