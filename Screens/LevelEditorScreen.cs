@@ -409,6 +409,7 @@ namespace LevelEditorPlugin.Screens
     public class LevelEditorScreen : DeferredRenderScreen2
     {
         public bool ShowTaskWindow { get; set; }
+        public float CameraSpeedMultiplier { get; set; } = 1.5f;
 
         // @hack: so that entities have access to the camera. Primarily for sprites
         public static LevelEditorCamera EditorCamera { get; private set; }
@@ -468,6 +469,17 @@ namespace LevelEditorPlugin.Screens
         public override void Update(double timestep)
         {
             base.Update(timestep);
+
+            if (camera.IsBeingDragged())
+            {
+                CameraSpeedMultiplier += 0.0005f;
+            }
+            else
+            {
+                CameraSpeedMultiplier = 1.5f;
+            }
+
+            camera.SetMoveScaler((float)Math.Pow(CameraSpeedMultiplier, 5));
 
             translateGizmo.Update(RenderCreateState);
             if (!translateGizmo.IsMoving)

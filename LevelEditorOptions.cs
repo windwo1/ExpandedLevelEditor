@@ -75,6 +75,11 @@ namespace LevelEditorPlugin
         public bool OverwriteLevel { get; set; } = true;
 
         [Category("Importing")]
+        [DisplayName("Generate Collision")]
+        [Description("Whether objects will generate collision (from their BoundingBox). If off, collision can be made manually")]
+        public bool GenerateCollision { get; set; } = true;
+
+        [Category("Importing")]
         [DisplayName("Object Offset")]
         [Description("The offset for all objects that are imported")]
         public Vec3 ObjectOffset { get; set; }
@@ -98,6 +103,7 @@ namespace LevelEditorPlugin
             TerrainDecimation = Config.Get<float>("TerrainDecimation", 0.05f);
 
             OverwriteLevel = Config.Get<bool>("OverwriteLevel", true);
+            GenerateCollision = Config.Get<bool>("GenerateCollision", true);
             ObjectOffset = Config.Get<Vec3>("ObjectOffset", new Vec3());
         }
 
@@ -120,6 +126,7 @@ namespace LevelEditorPlugin
             Config.Add("TerrainDecimation", TerrainDecimation);
 
             Config.Add("OverwriteLevel", OverwriteLevel);
+            Config.Add("GenerateCollision", GenerateCollision);
             Config.Add("ObjectOffset", ObjectOffset);
 
             Config.Save();

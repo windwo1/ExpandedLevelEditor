@@ -4,7 +4,7 @@ import re
 import xml.etree.cElementTree as ET
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import Operator
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 def remove_suffix(name):
     return re.sub(r'\.\d+$', '', name)
@@ -88,6 +88,48 @@ class ExportFolderOperator(Operator):
                 name_element.text = obj.name
                 mat_element = ET.SubElement(obj_element, "Material")
                 mat_element.text = mat_name
+
+                bbox = []
+                for corner in obj.bound_box:
+                    bbox.append(Vector(corner))
+
+                min_x = None
+                min_y = None
+                min_z = None
+
+                for v in bbox:
+                    if min_x is None or v.x < min_x:
+                        min_x = v.x
+
+                    if min_y is None or v.y < min_y:
+                        min_y = v.y
+
+                    if min_z is None or v.z < min_z:
+                        min_z = v.z
+
+                max_x = None
+                max_y = None
+                max_z = None
+
+                for v in bbox:
+                    if max_x is None or v.x > max_x:
+                        max_x = v.x
+
+                    if max_y is None or v.y > max_y:
+                        max_y = v.y
+
+                    if max_z is None or v.z > max_z:
+                        max_z = v.z
+
+                bbox_min = Vector((min_x, min_y, min_z))
+                bbox_max = Vector((max_x, max_y, max_z))
+
+                bounding_box_element = ET.SubElement(obj_element, "BoundingBox")
+
+                min_element = ET.SubElement(bounding_box_element, "Min")
+                write_vec3(min_element, bbox_min)
+                max_element = ET.SubElement(bounding_box_element, "Max")
+                write_vec3(max_element, bbox_max)
 
                 location = obj.matrix_world.translation.copy()
                 rotation = obj.matrix_world.to_quaternion().normalized()

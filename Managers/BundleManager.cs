@@ -26,16 +26,9 @@ namespace LevelEditorPlugin.Managers
 
         private EbxAssetEntry meshVarDb;
         private MeshVariationMaterial materialRef;
-        private HashSet<string> managedAssets = new HashSet<string>();
 
         public void Manage(List<int> bundles, EbxAssetEntry rootEntry, MeshVariationMaterial material = null)
         {
-            bundles.Sort();
-            string cacheKey = $"{string.Join(",", bundles)}:{rootEntry.Name}";
-
-            if (!managedAssets.Add(cacheKey))
-                return;
-
             foreach (int bundle in bundles)
             {
                 if (rootEntry.IsInBundle(bundle))
@@ -64,6 +57,7 @@ namespace LevelEditorPlugin.Managers
                 rootEntry.AddedBundles.Add(bundle);
             }
 
+            ManageRes(bundles, rootEntry, visited);
             foreach (var guid in rootEntry.EnumerateDependencies())
             {
                 var entry = App.AssetManager.GetEbxEntry(guid);

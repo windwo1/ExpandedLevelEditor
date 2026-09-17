@@ -1,5 +1,4 @@
-﻿using Frosty.Controls;
-using Frosty.Core;
+﻿using Frosty.Core;
 using Frosty.Core.Controls;
 using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
@@ -13,22 +12,18 @@ using FrostySdk.Resources;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
-using LevelEditorPlugin.Properties;
 using MeshSetPlugin;
 using SharpDX;
-using SharpDX.Direct2D1.Effects;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using System.Reflection;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Xml;
 using TexturePlugin;
+using AxisAlignedBox = MeshSetPlugin.Resources.AxisAlignedBox;
 using BundleType = FrostySdk.Managers.BundleType;
 using D3D11 = SharpDX.Direct3D11;
 using MeshMaterial = FrostySdk.Ebx.MeshMaterial;
@@ -43,6 +38,8 @@ namespace LevelEditorPlugin.Editors.Importers
         {
             [DisplayName("Overwrite Level")]
             public bool OverwriteLevel { get; set; } = true;
+            [DisplayName("Generate Collision")]
+            public bool GenerateCollision { get; set; } = true;
             [DisplayName("Object Offset")]
             public Vec3 ObjectOffset { get; set; }
         }
@@ -59,6 +56,8 @@ namespace LevelEditorPlugin.Editors.Importers
         private class ObjectInfo
         {
             public string Name { get; set; }
+            public AxisAlignedBox BoundingBox { get; set; }
+            public BoundingBox SharpDXBoundingBox { get; set; }
             public Matrix Transform { get; set; }
             public MaterialInfo Material { get; set; }
         }
@@ -101,6 +100,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     string levelPath = Path.GetDirectoryName(ofd.FileName);
 
                     Config.Add("OverwriteLevel", importSettings.OverwriteLevel);
+                    Config.Add("GenerateCollision", importSettings.GenerateCollision);
                     Config.Add("ObjectOffset", importSettings.ObjectOffset);
                     Config.Save();
 
@@ -153,26 +153,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 }
 
                 string layerName = "layer0_leveleditor";
-
-                var part = CreateAsset($"{levelEntry.Name}/{layerName}", TypeLibrary.GetType("WorldPartData"));
-                var partAsset = App.AssetManager.GetEbx(part);
-                (partAsset.RootObject as WorldPartData).Enabled = true;
-                part.AddedBundles.AddRange(levelEntry.EnumerateBundles());
-
-                var partRef = Utils.CreateEntityData(typeof(WorldPartReferenceObjectData), levelAsset) as WorldPartReferenceObjectData;
-                partRef.LightmapResolutionScale = 1;
-                partRef.CastSunShadowEnable = true;
-                partRef.CastReflectionEnable = true;
-                partRef.CastEnvmapEnable = true;
-                partRef.Blueprint = CreateRef(part.Name, levelAsset);
-
-                levelAsset.AddObject(partRef);
-
-                App.AssetManager.ModifyEbx(levelEntry.Name, levelAsset);
-                App.AssetManager.ModifyEbx(part.Name, partAsset);
-
-                var partEntity = new WorldPartReferenceObject(partRef, world);
-                world.AddEntity(partEntity);
+                CreateLayer(layerName, out var part, out var partEntity);
 
                 layer = part;
                 sceneLayer = new SceneLayer(partEntity, layerName);
@@ -223,24 +204,24 @@ namespace LevelEditorPlugin.Editors.Importers
                 string mat = objNode.SelectSingleNode("Material").InnerText;
                 obj.Material = materials.Find(m => m.Name == mat);
 
+                var bboxNode = objNode.SelectSingleNode("BoundingBox");
+
+                Vector3 min = ParseVector3Xml(bboxNode.SelectSingleNode("Min"));
+                Vector3 max = ParseVector3Xml(bboxNode.SelectSingleNode("Max"));
+                obj.BoundingBox = new AxisAlignedBox
+                {
+                    min = new MeshSetPlugin.Resources.Vec3() { x = min.X, y = min.Z, z = min.Y },
+                    max = new MeshSetPlugin.Resources.Vec3() { x = max.X, y = max.Z, z = max.Y },
+                };
+                obj.SharpDXBoundingBox = new BoundingBox(
+                    new Vector3(obj.BoundingBox.min.x, obj.BoundingBox.min.y, obj.BoundingBox.min.z), 
+                    new Vector3(obj.BoundingBox.max.x, obj.BoundingBox.max.y, obj.BoundingBox.max.z));
+
                 var transformNode = objNode.SelectSingleNode("Transform");
 
-                Vector3 location;
-                Quaternion quaternion;
-                Vector3 scale;
-                var lNode = transformNode.SelectSingleNode("Location");
-                location = new Vector3(float.Parse(lNode.SelectSingleNode("X").InnerText),
-                                       float.Parse(lNode.SelectSingleNode("Y").InnerText),
-                                       float.Parse(lNode.SelectSingleNode("Z").InnerText));
-                var qNode = transformNode.SelectSingleNode("Quaternion");
-                quaternion = new Quaternion(float.Parse(qNode.SelectSingleNode("X").InnerText),
-                                            float.Parse(qNode.SelectSingleNode("Y").InnerText),
-                                            float.Parse(qNode.SelectSingleNode("Z").InnerText),
-                                            float.Parse(qNode.SelectSingleNode("W").InnerText));
-                var sNode = transformNode.SelectSingleNode("Scale");
-                scale = new Vector3(float.Parse(sNode.SelectSingleNode("X").InnerText),
-                                    float.Parse(sNode.SelectSingleNode("Y").InnerText),
-                                    float.Parse(sNode.SelectSingleNode("Z").InnerText));
+                Vector3 location = ParseVector3Xml(transformNode.SelectSingleNode("Location"));
+                Quaternion quaternion = ParseQuaternionXml(transformNode.SelectSingleNode("Quaternion"));
+                Vector3 scale = ParseVector3Xml(transformNode.SelectSingleNode("Scale"));
 
                 obj.Transform = FromBlenderTransform(location, quaternion, scale);
 
@@ -264,17 +245,15 @@ namespace LevelEditorPlugin.Editors.Importers
 
                 var sampleEntry = App.AssetManager.GetEbxEntry(sample.Name);
 
-                string meshAssetPath = $"_leveleditor/Meshes/{obj.Name}_Mesh";
+                string meshAssetPath = $"_leveleditor/Meshes/{obj.Name.ToLower()}_Mesh";
                 string blueprintAssetPath = $"_leveleditor/Meshes/{obj.Name}";
 
                 if (App.AssetManager.GetEbxEntry(meshAssetPath) == null || App.AssetManager.GetEbxEntry(blueprintAssetPath) == null)
                 {
-                    var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(sample.GetType().Name), sample);
+                    var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(sample.GetType().Name), sample, obj.BoundingBox);
                     var blueprint = CreateAsset(blueprintAssetPath, TypeLibrary.GetType("ObjectBlueprint"));
 
-                    var blueprintEntry = App.AssetManager.GetEbxEntry(blueprint.Name);
                     var blueprintAsset = App.AssetManager.GetEbx(blueprint);
-                    var meshEntry = App.AssetManager.GetEbxEntry(mesh.Name);
                     var meshAsset = App.AssetManager.GetEbx(mesh);
 
                     var objBlueprint = App.AssetManager.GetEbx(blueprint).RootObject as ObjectBlueprint;
@@ -307,28 +286,31 @@ namespace LevelEditorPlugin.Editors.Importers
                         var texParams = new List<TextureShaderParameter>();
                         var addedParams = new List<string>();
 
-                        foreach (string texPath in obj.Material.Textures)
+                        if (obj.Material != null)
                         {
-                            string paramName = "";
-                            string texName = Path.GetFileNameWithoutExtension(texPath);
+                            foreach (string texPath in obj.Material.Textures)
+                            {
+                                string paramName = "";
+                                string texName = Path.GetFileNameWithoutExtension(texPath);
 
-                            // @todo: support for other game textures
-                            if (texName.EndsWith("_ASM")) paramName = "ASM";
-                            if (texName.EndsWith("_Color")) paramName = "Color";
-                            if (texName.EndsWith("_Normal")) paramName = "Normal";
-                            if (texName.EndsWith("_ETT")) paramName = "ETT";
+                                // @todo: support for other game textures
+                                if (texName.EndsWith("_ASM")) paramName = "ASM";
+                                if (texName.EndsWith("_Color")) paramName = "Color";
+                                if (texName.EndsWith("_Normal")) paramName = "Normal";
+                                if (texName.EndsWith("_ETT")) paramName = "ETT";
 
-                            // most likely a color/diffuse texture if there is only one
-                            if (obj.Material.Textures.Count == 1)
-                                paramName = "Color";
+                                // most likely a color/diffuse texture if there is only one
+                                if (obj.Material.Textures.Count == 1)
+                                    paramName = "Color";
 
-                            if (string.IsNullOrEmpty(paramName))
-                                continue;
+                                if (string.IsNullOrEmpty(paramName))
+                                    continue;
 
-                            EbxAssetEntry texEntry = CreateTexture("_leveleditor/Textures/" + texName, textureSample, texPath);
-                            AddTexParam(paramName, texEntry);
+                                EbxAssetEntry texEntry = CreateTexture("_leveleditor/Textures/" + texName, textureSample, texPath);
+                                AddTexParam(paramName, texEntry);
 
-                            addedParams.Add(paramName);
+                                addedParams.Add(paramName);
+                            }
                         }
 
                         if (!addedParams.Contains("ASM") && gameDefaults.ASMTexture != null) AddTexParam("ASM", gameDefaults.ASMTexture);
@@ -363,7 +345,7 @@ namespace LevelEditorPlugin.Editors.Importers
                             var meshSet = App.AssetManager.GetResAs<MeshSet>(resEntry);
 
                             var fbxImporter = new FBXImporter(App.Logger);
-                            fbxImporter.ImportFBX(fbx, meshSet, meshAsset, meshEntry);
+                            fbxImporter.ImportFBX(fbx, meshSet, meshAsset, mesh);
                         }
                     }
                     catch (FBXImportInvalidLodCountException) // @todo: update frosty's FBX sdk to stop this
@@ -376,10 +358,44 @@ namespace LevelEditorPlugin.Editors.Importers
                 entities.AddRange(editor.AddEntities(App.AssetManager.GetEbxEntry(blueprintAssetPath), 1, transform,
                     addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, selectEntity: false));
 
-                // @todo: implement collision generation with OBBCollision entities (not havok!).
-                // would also include setting the mesh bounding box
-
                 count++;
+            }
+
+            task.Update("Creating collision");
+
+            string collisionLayerName = "layer1_collision";
+            CreateLayer(collisionLayerName, out var collisionLayer, out var worldPartEntity);
+            var collisionLayerAsset = App.AssetManager.GetEbx(collisionLayer);
+
+            var collisionSceneLayer = new SceneLayer(worldPartEntity, collisionLayerName);
+            rootLayer.AddLayer(collisionSceneLayer);
+
+            var parent = collisionSceneLayer.Entity as WorldPartReferenceObject;
+
+            if (importSettings.GenerateCollision)
+            {
+                foreach (var obj in objects)
+                {
+                    var transform = obj.Transform * Matrix.Translation(SharpDXUtils.FromVec3(importSettings.ObjectOffset));
+                    
+                    var halfExtents = (obj.SharpDXBoundingBox.Maximum - obj.SharpDXBoundingBox.Minimum) * 0.25f;
+                    var obbObj = Utils.CreateEntityData(typeof(OBBCollisionEntityData), collisionLayerAsset) as OBBCollisionEntityData;
+                    var rigidBodyObj = Utils.CreateEntityData(typeof(RigidBodyData), collisionLayerAsset) as RigidBodyData;
+
+                    ApplyRigidBodyDefaults(rigidBodyObj);
+                    obbObj.Transform = Entities.Entity.MakeLinearTransform(transform);
+                    obbObj.HalfExtents = new Vec3() { x = halfExtents.X, y = halfExtents.Y, z = halfExtents.Z };
+                    obbObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
+                    obbObj.Enabled = true;
+                    collisionLayerAsset.AddObject(obbObj);
+                    collisionLayerAsset.AddObject(rigidBodyObj);
+
+                    var obbEntity = new Entities.OBBCollisionEntity(obbObj, parent);
+                    parent.AddEntity(obbEntity);
+
+                    collisionSceneLayer.AddEntity(obbEntity);
+                    editor.Screen.AddEntity(obbEntity);
+                }
             }
 
             MeshVariationDb.LoadModifiedVariations();
@@ -389,6 +405,23 @@ namespace LevelEditorPlugin.Editors.Importers
             }
 
             return root;
+        }
+
+        private Vector3 ParseVector3Xml(XmlNode node)
+        {
+            return new Vector3(
+                float.Parse(node.SelectSingleNode("X").InnerText),
+                float.Parse(node.SelectSingleNode("Y").InnerText),
+                float.Parse(node.SelectSingleNode("Z").InnerText));
+        }
+
+        private Quaternion ParseQuaternionXml(XmlNode node)
+        {
+            return new Quaternion(
+                float.Parse(node.SelectSingleNode("X").InnerText),
+                float.Parse(node.SelectSingleNode("Y").InnerText),
+                float.Parse(node.SelectSingleNode("Z").InnerText),
+                float.Parse(node.SelectSingleNode("W").InnerText));
         }
 
         private Matrix FromBlenderTransform(Vector3 location, Quaternion quaternion, Vector3 scale)
@@ -449,6 +482,22 @@ namespace LevelEditorPlugin.Editors.Importers
             App.AssetManager.ModifyEbx(objBlueprint.Name, blueprintAsset);
         }
 
+        private void ApplyRigidBodyDefaults(RigidBodyData data)
+        {
+            data.Realm = Realm.Realm_ClientAndServer;
+            data.CollisionLayer = RigidBodyCollisionLayer.RigidBodyCollisionLayer_StaticLayer;
+            data.Material = new MaterialDecl() { Packed = 128 };
+            data.DynamicFriction = -1;
+            data.StaticFriction = -1;
+            data.Restitution = -1;
+            data.ComputeCenterOfMass = true;
+            data.InertiaModifier = new Vec3() { x = 1, y = 1, z = 1 };
+            data.AngularVelocityDamping = -1;
+            data.LinearVelocityDamping = -1;
+            data.QualityType = RigidBodyQualityType.RigidBodyQualityType_Invalid;
+            data.IsRootController = true;
+        }
+
         private void ApplyMeshDefaults(MeshMaterial meshMaterial, MeshAsset meshProperties, EbxAsset asset)
         {
             meshMaterial.CastShadow = true;
@@ -476,17 +525,55 @@ namespace LevelEditorPlugin.Editors.Importers
             meshProperties.Materials = new List<PointerRef> { new PointerRef(internalRef: meshMaterial) };
         }
 
-        private EbxAssetEntry CreateMesh(string name, Type type, MeshAsset sample)
+        private void CreateLayer(string name, out EbxAssetEntry outPart, out WorldPartReferenceObject outPartEntity)
         {
-            name = name.ToLower();
+            var part = CreateAsset($"{levelEntry.Name}/{name}", TypeLibrary.GetType("WorldPartData"));
+            var partAsset = App.AssetManager.GetEbx(part);
 
+            var rootObject = partAsset.RootObject as WorldPartData;
+            rootObject.Enabled = true;
+            rootObject.Flags = 1;
+            part.AddedBundles.AddRange(levelEntry.EnumerateBundles());
+
+            var partRef = Utils.CreateEntityData(typeof(WorldPartReferenceObjectData), levelAsset) as WorldPartReferenceObjectData;
+            partRef.LightmapResolutionScale = 1;
+            partRef.CastSunShadowEnable = true;
+            partRef.CastReflectionEnable = true;
+            partRef.CastEnvmapEnable = true;
+            partRef.Blueprint = CreateRef(part.Name, levelAsset);
+
+            levelAsset.AddObject(partRef);
+
+            App.AssetManager.ModifyEbx(levelEntry.Name, levelAsset);
+            App.AssetManager.ModifyEbx(part.Name, partAsset);
+
+            var partEntity = new WorldPartReferenceObject(partRef, world);
+            world.AddEntity(partEntity);
+
+            outPart = part;
+            outPartEntity = partEntity;
+        }
+
+        private EbxAssetEntry CreateMesh(string name, Type type, MeshAsset sample, AxisAlignedBox boundingBox)
+        {
             EbxAssetEntry entry = CreateAsset(name, type);
             EbxAsset asset = App.AssetManager.GetEbx(entry);
             MeshAsset meshProperties = asset.RootObject as MeshAsset;
 
-            ResAssetEntry resAsset = DuplicateRes(App.AssetManager.GetResEntry(sample.MeshSetResource), name, ResourceType.MeshSet);
+            var resEntry = App.AssetManager.GetResEntry(sample.MeshSetResource);
+            byte[] resMeta = (byte[])resEntry.ResMeta.Clone();
+            resMeta[0] = 0x00;
+
+            ResAssetEntry resAsset = DuplicateRes(resEntry, name, ResourceType.MeshSet, resMeta);
             MeshSet meshSet = App.AssetManager.GetResAs<MeshSet>(resAsset);
             meshSet.FullName = resAsset.Name;
+
+            resAsset.ResMeta[0] = 0x00;
+            meshSet.ResourceMeta[0] = 0x00;
+
+            // annoying that the BoundingBox property is read only
+            var bboxField = typeof(MeshSet).GetField("m_boundingBox", BindingFlags.NonPublic | BindingFlags.Instance);
+            bboxField.SetValue(meshSet, boundingBox);
 
             foreach (var lod in meshSet.Lods)
             {
@@ -513,7 +600,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 // VectorParameters should also go here, but currently we're just using the default shader
             };
             meshProperties.MeshSetResource = resAsset.ResRid;
-            meshProperties.NameHash = (uint)FrostySdk.Utils.HashString(name);
+            meshProperties.NameHash = (uint)FrostySdk.Utils.HashString(name, true);
 
             ApplyMeshDefaults(meshMaterial, meshProperties, asset);
 
@@ -579,7 +666,7 @@ namespace LevelEditorPlugin.Editors.Importers
            return App.AssetManager.AddEbx(name, asset);
         }
 
-        private ResAssetEntry DuplicateRes(ResAssetEntry entry, string name, ResourceType resType)
+        private ResAssetEntry DuplicateRes(ResAssetEntry entry, string name, ResourceType resType, byte[] meta = null)
         {
             var existing = App.AssetManager.GetResEntry(name);
             if (existing != null)
@@ -588,7 +675,7 @@ namespace LevelEditorPlugin.Editors.Importers
             ResAssetEntry newEntry;
             using (NativeReader reader = new NativeReader(App.AssetManager.GetRes(entry)))
             {
-                newEntry = App.AssetManager.AddRes(name, resType, entry.ResMeta, reader.ReadToEnd());
+                newEntry = App.AssetManager.AddRes(name, resType, meta ?? entry.ResMeta, reader.ReadToEnd());
             }
 
             return newEntry;
@@ -1017,7 +1104,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 case ProfileVersion.PlantsVsZombiesGardenWarfare2:
                     return new GameDefaults
                     {
-                        Shader = App.AssetManager.GetEbxEntry("art/Shaders/Props/PBR_Object_Main"),
+                        Shader = App.AssetManager.GetEbxEntry("art/Shaders/Props/PBR_Object_Base"),
                         ASMTexture = App.AssetManager.GetEbxEntry("art/Textures/Generic/Default_ASM"),
                         ColorTexture = App.AssetManager.GetEbxEntry("art/Textures/Generic/Default_Color"),
                         NormalTexture = App.AssetManager.GetEbxEntry("art/Textures/Generic/Default_Normal"),
