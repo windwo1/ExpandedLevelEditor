@@ -623,10 +623,11 @@ class ImportFolderOperator(Operator):
                                         material.node_tree.links.new(image_source, bsdf.inputs["Base Color"])
                                         material.node_tree.links.new(bsdf.outputs["BSDF"], ao_mix_node.inputs["Shader_001"])
 
+                                        if use_vector_params:
+                                            material.node_tree.links.new(color_texture_node.outputs["Color"], tint_color_node.inputs["A"])
+
                                         if transparent_materials:
                                             material.node_tree.links.new(color_texture_node.outputs["Alpha"], bsdf.inputs["Alpha"])
-                                        else:
-                                            color_texture_node.image.alpha_mode = "NONE"
                                     else:
                                         # use the tint color directly
                                         bsdf.inputs["Base Color"].default_value = (tint_r, tint_g, tint_b, 1.0)

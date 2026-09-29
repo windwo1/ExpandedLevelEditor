@@ -452,7 +452,7 @@ namespace LevelEditorPlugin.Editors
                         }
                         if (addedLayer.Entity is SubWorldReferenceObject subWorld)
                         {
-                            layerGuid = subWorld.Data.Blueprint.External.FileGuid;
+                            layerGuid = App.AssetManager.GetEbxEntry(subWorld.Data.BundleName).Guid;
                             owner = subWorld;
                             parent = subWorld;
                         }

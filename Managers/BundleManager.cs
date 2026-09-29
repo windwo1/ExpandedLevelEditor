@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MeshSet = LevelEditorPlugin.Resources.MeshSet;
 using BundleType = FrostySdk.Managers.BundleType;
 
 namespace LevelEditorPlugin.Managers
@@ -85,7 +86,7 @@ namespace LevelEditorPlugin.Managers
                 ManageRes(bundles, res, entry);
                 ManageRes(bundles, occluderRes, entry);
 
-                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
+                var meshSet = App.AssetManager.GetResAs<MeshSet>(res);
                 foreach (var lod in meshSet.Lods)
                 {
                     var chunkEntry = App.AssetManager.GetChunkEntry(lod.ChunkId);

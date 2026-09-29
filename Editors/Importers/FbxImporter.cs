@@ -3,8 +3,8 @@ using FrostySdk;
 using FrostySdk.Interfaces;
 using FrostySdk.IO;
 using FrostySdk.Managers;
+using LevelEditorPlugin.Resources;
 using MeshSetPlugin;
-using MeshSetPlugin.Resources;
 using SharpDX;
 using System;
 using System.Collections.Generic;
@@ -24,7 +24,7 @@ namespace LevelEditorPlugin.Editors.Importers
         public float FlipZ { get; set; } = 1.0f;
 
         private MeshSet meshSet;
-        private List<ShaderBlockDepot> shaderBlockDepots;
+        private List<MeshSetPlugin.Resources.ShaderBlockDepot> shaderBlockDepots;
         private ResAssetEntry resEntry;
         private ILogger logger;
 
@@ -40,7 +40,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
             meshSet = inMeshSet;
 
-            shaderBlockDepots = new List<ShaderBlockDepot>();
+            shaderBlockDepots = new List<MeshSetPlugin.Resources.ShaderBlockDepot>();
             if (ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsBattlefrontII)
             {
                 // collect every shader block depot that is used by this mesh
@@ -49,7 +49,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 {
                     if (sbeEntry.Name.Contains(path))
                     {
-                        shaderBlockDepots.Add(App.AssetManager.GetResAs<ShaderBlockDepot>(sbeEntry));
+                        shaderBlockDepots.Add(App.AssetManager.GetResAs<MeshSetPlugin.Resources.ShaderBlockDepot>(sbeEntry));
                     }
                 }
             }
@@ -58,82 +58,88 @@ namespace LevelEditorPlugin.Editors.Importers
             entry.LinkedAssets.Clear();
             resEntry.LinkedAssets.Clear();
 
-            using (FbxManager manager = new FbxManager())
+            try
             {
-                FbxIOSettings fbxSettings = new FbxIOSettings(manager, FbxIOSettings.IOSROOT);
-                manager.SetIOSettings(fbxSettings);
-
-                FbxScene scene = new FbxScene(manager, "");
-                LoadScene(manager, scene, filename);
-
-                List<FbxNode>[] lodNodes = new List<FbxNode>[7];
-                int lodCount = 0;
-
-                // look nodes
-                foreach (FbxNode child in scene.RootNode.Children)
+                using (FbxManager manager = new FbxManager())
                 {
-                    string nodeName = child.Name.ToLower();
-                    if (nodeName.Contains("lod"))
+                    FbxIOSettings fbxSettings = new FbxIOSettings(manager, FbxIOSettings.IOSROOT);
+                    manager.SetIOSettings(fbxSettings);
+
+                    FbxScene scene = new FbxScene(manager, "");
+                    LoadScene(manager, scene, filename);
+
+                    List<FbxNode>[] lodNodes = new List<FbxNode>[7];
+                    int lodCount = 0;
+
+                    // look nodes
+                    foreach (FbxNode child in scene.RootNode.Children)
                     {
-                        if (nodeName.Contains(":"))
+                        string nodeName = child.Name.ToLower();
+                        if (nodeName.Contains("lod"))
                         {
-                            // flat hierarchy, contains section:lodX
-                            nodeName = nodeName.Substring(nodeName.LastIndexOf(":lod") + 4);
-
-                            if (int.TryParse(nodeName, out int lodIndex))
+                            if (nodeName.Contains(":"))
                             {
-                                if (lodNodes[lodIndex] == null)
+                                // flat hierarchy, contains section:lodX
+                                nodeName = nodeName.Substring(nodeName.LastIndexOf(":lod") + 4);
+
+                                if (int.TryParse(nodeName, out int lodIndex))
                                 {
-                                    lodNodes[lodIndex] = new List<FbxNode>();
-                                    lodCount++;
+                                    if (lodNodes[lodIndex] == null)
+                                    {
+                                        lodNodes[lodIndex] = new List<FbxNode>();
+                                        lodCount++;
+                                    }
+                                    lodNodes[lodIndex].Add(child);
                                 }
-                                lodNodes[lodIndex].Add(child);
                             }
-                        }
-                        else
-                        {
-                            // standard hierarchy
-                            nodeName = nodeName.Substring(nodeName.Length - 1);
-
-                            if (int.TryParse(nodeName, out int lodIndex))
+                            else
                             {
-                                if (lodNodes[lodIndex] == null)
+                                // standard hierarchy
+                                nodeName = nodeName.Substring(nodeName.Length - 1);
+
+                                if (int.TryParse(nodeName, out int lodIndex))
                                 {
-                                    lodNodes[lodIndex] = new List<FbxNode>();
-                                    lodCount++;
+                                    if (lodNodes[lodIndex] == null)
+                                    {
+                                        lodNodes[lodIndex] = new List<FbxNode>();
+                                        lodCount++;
+                                    }
+                                    lodNodes[lodIndex].AddRange(child.Children);
                                 }
-                                lodNodes[lodIndex].AddRange(child.Children);
                             }
                         }
                     }
+
+                    if (lodCount < meshSet.Lods.Count)
+                    {
+                        App.Logger.Log($"Invalid LOD count ({lodCount} < {meshSet.Lods.Count})");
+                        throw new FBXImportInvalidLodCountException();
+                    }
+
+                    meshSet.ClearPartData();
+                    List<BoundingBox> partBbox = new List<BoundingBox>();
+                    List<LinearTransform> transforms = new List<LinearTransform>();
+                    // process each lod
+                    for (int i = 0; i < meshSet.Lods.Count; i++)
+                    {
+                        ProcessLod(lodNodes[i], i, ref partBbox, ref transforms);
+                    }
+
+                    if (meshSet.Type == MeshType.MeshType_Composite)
+                    {
+                        meshSet.SetParts(ToAxisAlignedBoundingBoxes(partBbox), transforms);
+                    }
                 }
 
-                if (lodCount < meshSet.Lods.Count)
-                {
-                    App.Logger.Log($"Invalid LOD count ({lodCount} < {meshSet.Lods.Count})");
-                    throw new FBXImportInvalidLodCountException();
-                }
+                meshSet.FullName = resEntry.Name;
 
-                meshSet.ClearPartData();
-                List<BoundingBox> partBbox = new List<BoundingBox>();
-                List<LinearTransform> transforms = new List<LinearTransform>();
-                // process each lod
-                for (int i = 0; i < meshSet.Lods.Count; i++)
-                {
-                    ProcessLod(lodNodes[i], i, ref partBbox, ref transforms);
-                }
-
-                if (meshSet.Type == MeshType.MeshType_Composite)
-                {
-                    meshSet.SetParts(ToAxisAlignedBoundingBoxes(partBbox), transforms);
-                }
+                // modify resource
+                App.AssetManager.ModifyRes(resRid, meshSet);
             }
-
-            meshSet.FullName = resEntry.Name;
-
-            // modify resource
-            App.AssetManager.ModifyRes(resRid, meshSet);
-            entry.LinkAsset(resEntry);
+            finally
+            {
+                entry.LinkAsset(resEntry);
+            }
         }
 
         private List<AxisAlignedBox> ToAxisAlignedBoundingBoxes(List<BoundingBox> inBoundingBoxes)
@@ -372,7 +378,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     var sbe = depot.GetSectionEntry(lodIndex);
                     for (int i = 0; i < meshLod.Sections.Count; i++)
                     {
-                        MeshParamDbBlock meshParams = sbe.GetMeshParams(i);
+                        MeshSetPlugin.Resources.MeshParamDbBlock meshParams = sbe.GetMeshParams(i);
                         if (meshParams != null)
                         {
                             meshParams.SetParameterValue("!primitiveCount", meshLod.Sections[i].PrimitiveCount);

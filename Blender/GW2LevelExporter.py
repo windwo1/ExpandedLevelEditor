@@ -28,55 +28,86 @@ class ExportFolderOperator(Operator):
         os.makedirs(os.path.join(self.directory, "Meshes"), exist_ok=True)
 
         objects = []
-        for obj in bpy.data.objects:
-            if obj.type != "MESH":
-                continue
+        exported_meshes = {}
+        written_meshes = set()
 
-            bpy.ops.object.select_all(action="DESELECT")
-            
-            exported_obj = obj.copy()
-            exported_obj.data = obj.data.copy()
-            exported_obj.parent = None
-            exported_obj.matrix_world = Matrix.Identity(4)
+        use_undo = context.preferences.edit.use_global_undo
+        context.preferences.edit.use_global_undo = False
 
-            if ":lod0" not in obj.name:
-                # so that frosty can import the objs
-                exported_obj.name += ":lod0"
+        prev_selected = list(context.selected_objects)
+        prev_active = context.view_layer.objects.active
 
-            context.collection.objects.link(exported_obj)
+        for obj in prev_selected:
+            obj.select_set(False)
 
-            exported_obj.select_set(True)
-            context.view_layer.objects.active = exported_obj
+        try:
+            for obj in bpy.data.objects:
+                if obj.type != "MESH":
+                    continue
 
-            # will export duplicate meshes but idk of a good way to deduplicate them (names wouldn't work because common names like 'lambert' or 'Metal')
-            path = os.path.join(self.directory, "Meshes", obj.name + ".fbx")
+                if len(obj.data.uv_layers) < 1:
+                    continue
 
-            if not os.path.exists(path):
-                bpy.ops.export_scene.fbx(filepath=path, use_selection=True, global_scale=0.01, use_triangles=True, use_tspace=True)
+                mesh_name = obj.data.name
 
-            bpy.data.objects.remove(exported_obj, do_unlink=True)
-            objects.append(obj)
+                exported_meshes[obj.name] = mesh_name
+                objects.append(obj)
+
+                if mesh_name in written_meshes:
+                    continue
+
+                written_meshes.add(mesh_name)
+
+                exported_obj = obj.copy()
+                exported_obj.data = obj.data.copy()
+                exported_obj.parent = None
+                exported_obj.matrix_world = Matrix.Identity(4)
+
+                if ":lod0" not in obj.name:
+                    # so that frosty can import the objs
+                    exported_obj.name += ":lod0"
+
+                context.collection.objects.link(exported_obj)
+
+                exported_obj.select_set(True)
+                context.view_layer.objects.active = exported_obj
+
+                path = os.path.join(self.directory, "Meshes", mesh_name + ".fbx")
+
+                if not os.path.exists(path):
+                    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, global_scale=0.01, use_triangles=True, use_tspace=True)
+
+                bpy.data.objects.remove(exported_obj, do_unlink=True)
+        finally:
+            for obj in prev_selected:
+                if obj.name in bpy.data.objects:
+                    obj.select_set(True)
+
+            if prev_active is not None and prev_active.name in bpy.data.objects:
+                context.view_layer.objects.active = prev_active
+
+            context.preferences.edit.use_global_undo = use_undo
+
+        def write_vec3(parent, vec):
+            x_element = ET.SubElement(parent, "X")
+            x_element.text = str(vec.x)
+            y_element = ET.SubElement(parent, "Y")
+            y_element.text = str(vec.y)
+            z_element = ET.SubElement(parent, "Z")
+            z_element.text = str(vec.z)
+
+        def write_quaternion(parent, q):
+            x_element = ET.SubElement(parent, "X")
+            x_element.text = str(q.x)
+            y_element = ET.SubElement(parent, "Y")
+            y_element.text = str(q.y)
+            z_element = ET.SubElement(parent, "Z")
+            z_element.text = str(q.z)
+            w_element = ET.SubElement(parent, "W")
+            w_element.text = str(q.w)
 
         def export_objects(xml_path):
             root = ET.Element("Objects")
-
-            def write_vec3(parent, vec):
-                x_element = ET.SubElement(parent, "X")
-                x_element.text = str(vec.x)
-                y_element = ET.SubElement(parent, "Y")
-                y_element.text = str(vec.y)
-                z_element = ET.SubElement(parent, "Z")
-                z_element.text = str(vec.z)
-
-            def write_quaternion(parent, q):
-                x_element = ET.SubElement(parent, "X")
-                x_element.text = str(q.x)
-                y_element = ET.SubElement(parent, "Y")
-                y_element.text = str(q.y)
-                z_element = ET.SubElement(parent, "Z")
-                z_element.text = str(q.z)
-                w_element = ET.SubElement(parent, "W")
-                w_element.text = str(q.w)
 
             for obj in objects:
                 mat_name = ""
@@ -86,6 +117,8 @@ class ExportFolderOperator(Operator):
                 obj_element = ET.SubElement(root, "Object")
                 name_element = ET.SubElement(obj_element, "Name")
                 name_element.text = obj.name
+                mesh_element = ET.SubElement(obj_element, "Mesh")
+                mesh_element.text = exported_meshes[obj.name] + ".fbx"
                 mat_element = ET.SubElement(obj_element, "Material")
                 mat_element.text = mat_name
 
@@ -156,6 +189,10 @@ class ExportFolderOperator(Operator):
 
                 name_element = ET.SubElement(material_element, "Name")
                 name_element.text = mat.name
+
+                tint = mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value
+                tint_element = ET.SubElement(material_element, "Tint")
+                write_vec3(tint_element, Vector((tint[0], tint[1], tint[2])))
 
                 textures_element = ET.SubElement(material_element, "Textures")
 

@@ -264,7 +264,7 @@ namespace LevelEditorPlugin.Editors.Exporters
                     //App.Logger.Log("{0}: {1}", objMeshAsset.DisplayName, smiTransform.ToString());
 
                     ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
-                    var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
+                    var meshSet = App.AssetManager.GetResAs<Resources.MeshSet>(res);
 
                     exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportSettings.LODIndex, "binary", meshSet);
                     App.Logger.Log($"{objMeshAsset.Name}: {objMeshAsset.Type}");
@@ -447,7 +447,7 @@ namespace LevelEditorPlugin.Editors.Exporters
             if (!hasExportedMesh.TryGetValue(path, out var _))
             {
                 ResAssetEntry res = App.AssetManager.GetResEntry(meshAsset.MeshSetResource);
-                var meshSet = App.AssetManager.GetResAs<MeshSetPlugin.Resources.MeshSet>(res);
+                var meshSet = App.AssetManager.GetResAs<Resources.MeshSet>(res);
 
                 exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportSettings.LODIndex, "binary", meshSet);
                 App.Logger.Log($"{objMeshAsset.Name}: {objMeshAsset.Type}");
@@ -507,7 +507,7 @@ namespace LevelEditorPlugin.Editors.Exporters
             xmlWriter.WriteEndElement();
         }
 
-        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, MeshSetPlugin.Resources.MeshSet meshSet)
+        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, Resources.MeshSet meshSet)
         {
             xmlWriter.WriteStartElement("Sections");
 
@@ -529,7 +529,7 @@ namespace LevelEditorPlugin.Editors.Exporters
 
         private TextureExporter textureExporter = new TextureExporter();
 
-        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, string path, MeshSetPlugin.Resources.MeshSet meshSet, XmlWriter xmlWriter)
+        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, string path, Resources.MeshSet meshSet, XmlWriter xmlWriter)
         {
             try
             {
