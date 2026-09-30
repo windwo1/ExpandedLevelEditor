@@ -9,6 +9,9 @@ from mathutils import Matrix, Vector
 def remove_suffix(name):
     return re.sub(r'\.\d+$', '', name)
 
+def fix_filename(name):
+    return re.sub(r'[<>:"/\\|?*]', '_', name)
+
 class ExportFolderOperator(Operator):
     bl_idname = "export_scene.level_folder"
     bl_label = "Select Level Folder"
@@ -31,6 +34,9 @@ class ExportFolderOperator(Operator):
         exported_meshes = {}
         written_meshes = set()
 
+        collision_collection_name = "Collision"
+        collision_collection = bpy.data.collections[collision_collection_name]
+
         use_undo = context.preferences.edit.use_global_undo
         context.preferences.edit.use_global_undo = False
 
@@ -48,7 +54,10 @@ class ExportFolderOperator(Operator):
                 if len(obj.data.uv_layers) < 1:
                     continue
 
-                mesh_name = obj.data.name
+                if obj.users_collection[0].name == collision_collection_name:
+                    continue
+
+                mesh_name = fix_filename(obj.data.name)
 
                 exported_meshes[obj.name] = mesh_name
                 objects.append(obj)
@@ -106,6 +115,59 @@ class ExportFolderOperator(Operator):
             w_element = ET.SubElement(parent, "W")
             w_element.text = str(q.w)
 
+        def write_transform(parent, transform):
+            location = transform.translation.copy()
+            rotation = transform.to_quaternion().normalized()
+            scale = transform.to_scale()
+
+            location_element = ET.SubElement(parent, "Location")
+            write_vec3(location_element, location)
+            rotation_element = ET.SubElement(parent, "Quaternion")
+            write_quaternion(rotation_element, rotation)
+            scale_element = ET.SubElement(parent, "Scale")
+            write_vec3(scale_element, scale)
+
+        def write_bbox(parent, obj):
+            bbox = []
+            for corner in obj.bound_box:
+                bbox.append(Vector(corner))
+
+            min_x = None
+            min_y = None
+            min_z = None
+
+            for v in bbox:
+                if min_x is None or v.x < min_x:
+                    min_x = v.x
+
+                if min_y is None or v.y < min_y:
+                    min_y = v.y
+
+                if min_z is None or v.z < min_z:
+                    min_z = v.z
+
+            max_x = None
+            max_y = None
+            max_z = None
+
+            for v in bbox:
+                if max_x is None or v.x > max_x:
+                    max_x = v.x
+
+                if max_y is None or v.y > max_y:
+                    max_y = v.y
+
+                if max_z is None or v.z > max_z:
+                    max_z = v.z
+
+            bbox_min = Vector((min_x, min_y, min_z))
+            bbox_max = Vector((max_x, max_y, max_z))
+
+            min_element = ET.SubElement(parent, "Min")
+            write_vec3(min_element, bbox_min)
+            max_element = ET.SubElement(parent, "Max")
+            write_vec3(max_element, bbox_max)
+
         def export_objects(xml_path):
             root = ET.Element("Objects")
 
@@ -116,66 +178,17 @@ class ExportFolderOperator(Operator):
 
                 obj_element = ET.SubElement(root, "Object")
                 name_element = ET.SubElement(obj_element, "Name")
-                name_element.text = obj.name
+                name_element.text = fix_filename(obj.name)
                 mesh_element = ET.SubElement(obj_element, "Mesh")
                 mesh_element.text = exported_meshes[obj.name] + ".fbx"
                 mat_element = ET.SubElement(obj_element, "Material")
                 mat_element.text = mat_name
 
-                bbox = []
-                for corner in obj.bound_box:
-                    bbox.append(Vector(corner))
-
-                min_x = None
-                min_y = None
-                min_z = None
-
-                for v in bbox:
-                    if min_x is None or v.x < min_x:
-                        min_x = v.x
-
-                    if min_y is None or v.y < min_y:
-                        min_y = v.y
-
-                    if min_z is None or v.z < min_z:
-                        min_z = v.z
-
-                max_x = None
-                max_y = None
-                max_z = None
-
-                for v in bbox:
-                    if max_x is None or v.x > max_x:
-                        max_x = v.x
-
-                    if max_y is None or v.y > max_y:
-                        max_y = v.y
-
-                    if max_z is None or v.z > max_z:
-                        max_z = v.z
-
-                bbox_min = Vector((min_x, min_y, min_z))
-                bbox_max = Vector((max_x, max_y, max_z))
-
-                bounding_box_element = ET.SubElement(obj_element, "BoundingBox")
-
-                min_element = ET.SubElement(bounding_box_element, "Min")
-                write_vec3(min_element, bbox_min)
-                max_element = ET.SubElement(bounding_box_element, "Max")
-                write_vec3(max_element, bbox_max)
-
-                location = obj.matrix_world.translation.copy()
-                rotation = obj.matrix_world.to_quaternion().normalized()
-                scale = obj.matrix_world.to_scale()
+                bbox_element = ET.SubElement(obj_element, "BoundingBox")
+                write_bbox(bbox_element, obj)    
 
                 transform_element = ET.SubElement(obj_element, "Transform")
-
-                location_element = ET.SubElement(transform_element, "Location")
-                write_vec3(location_element, location)
-                rotation_element = ET.SubElement(transform_element, "Quaternion")
-                write_quaternion(rotation_element, rotation)
-                scale_element = ET.SubElement(transform_element, "Scale")
-                write_vec3(scale_element, scale)
+                write_transform(transform_element, obj.matrix_world)
 
             tree = ET.ElementTree(root)
             ET.indent(tree, space="    ")
@@ -217,12 +230,47 @@ class ExportFolderOperator(Operator):
             ET.indent(tree, space="    ")
             tree.write(xml_path)
 
+        def export_collision(xml_path):
+            if collision_collection is None:
+                return
+
+            root = ET.Element("Collisions")
+            
+            for obj in bpy.data.objects:
+                if obj.users_collection[0].name != collision_collection_name:
+                    continue
+
+                objType = ""
+                if obj.name.startswith("Cube"):
+                    objType = "Cube"
+                elif obj.name.startswith("Sphere"):
+                    objType = "Sphere"
+
+                if objType == "":
+                    continue
+
+                collision_element = ET.SubElement(root, "Collision")
+
+                type_element = ET.SubElement(collision_element, "Type")
+                type_element.text = objType
+
+                bbox_element = ET.SubElement(collision_element, "BoundingBox")
+                write_bbox(bbox_element, obj)
+
+                transform_element = ET.SubElement(collision_element, "Transform")
+                write_transform(transform_element, obj.matrix_world)
+
+            tree = ET.ElementTree(root)
+            ET.indent(tree, space="    ")
+            tree.write(xml_path)
 
         obj_xml_path = os.path.join(self.directory, "Objects.xml")
         materials_xml_path = os.path.join(self.directory, "Materials.xml")
+        collisions_xml_path = os.path.join(self.directory, "Collisions.xml")
         
         export_objects(obj_xml_path)
         export_materials(materials_xml_path)
+        export_collision(collisions_xml_path)
             
         return { "FINISHED" }
 

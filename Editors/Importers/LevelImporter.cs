@@ -59,7 +59,6 @@ namespace LevelEditorPlugin.Editors.Importers
             public string MeshName { get; set; }
             public AxisAlignedBox BoundingBox { get; set; }
             public BoundingBox SharpDXBoundingBox { get; set; }
-            public Vector3 LocalCenter { get; set; }
             public Matrix Transform { get; set; }
             public MaterialInfo Material { get; set; }
             public bool Created { get; set; }
@@ -72,6 +71,19 @@ namespace LevelEditorPlugin.Editors.Importers
             public List<string> Textures { get; set; }
         }
 
+        private enum CollisionType
+        {
+            Cube,
+            Sphere
+        }
+
+        private class CollisionInfo
+        {
+            public CollisionType Type { get; set; }
+            public Matrix Transform { get; set; }
+            public BoundingBox BoundingBox { get; set; }
+        }
+
         private LevelImportSettings importSettings;
 
         private EbxAssetEntry levelEntry;
@@ -80,9 +92,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
         private GameDefaults gameDefaults;
 
-        private static SkinnedMeshAsset skinnedSample;
-        private static RigidMeshAsset rigidSample;
-        private static CompositeMeshAsset compositeSample;
+        private static RigidMeshAsset meshSample;
         private static TextureAsset textureSample;
 
         private const int LodCount = 1;
@@ -113,6 +123,7 @@ namespace LevelEditorPlugin.Editors.Importers
             importSettings = new LevelImportSettings
             {
                 OverwriteLevel = Config.Get<bool>("OverwriteLevel", true),
+                GenerateCollision = Config.Get<bool>("GenerateCollision", true),
                 ObjectOffset = Config.Get<Vec3>("ObjectOffset", new Vec3())
             };
 
@@ -151,8 +162,10 @@ namespace LevelEditorPlugin.Editors.Importers
         {
             task.Update("Getting asset samples");
 
-            GetSamples();
             gameDefaults = GetDefaults();
+            GetSamples();
+
+            Matrix offset = Matrix.Translation(SharpDXUtils.FromVec3(importSettings.ObjectOffset));
 
             var layer = editor.AddedLayer;
             var sceneLayer = editor.AddedSceneLayer;
@@ -187,9 +200,11 @@ namespace LevelEditorPlugin.Editors.Importers
 
             string materialsXml = Path.Combine(levelPath, "Materials.xml");
             string objectsXml = Path.Combine(levelPath, "Objects.xml");
+            string collisionsXml = Path.Combine(levelPath, "Collisions.xml");
 
             var materials = new List<MaterialInfo>();
             var objects = new List<ObjectInfo>();
+            var collisions = new List<CollisionInfo>();
 
             task.Update("Reading Materials.xml");
             var materialDoc = new XmlDocument();
@@ -237,7 +252,6 @@ namespace LevelEditorPlugin.Editors.Importers
 
                 Vector3 min = ParseVector3Xml(bboxNode.SelectSingleNode("Min"));
                 Vector3 max = ParseVector3Xml(bboxNode.SelectSingleNode("Max"));
-                obj.LocalCenter = (min + max) * 0.5f;
                 obj.BoundingBox = new AxisAlignedBox
                 {
                     min = new Resources.Vec3() { x = min.X, y = min.Z, z = -max.Y },
@@ -258,11 +272,46 @@ namespace LevelEditorPlugin.Editors.Importers
                 objects.Add(obj);
             }
 
+            if (File.Exists(collisionsXml))
+            {
+                task.Update("Reading Collisions.xml");
+                var collisionsDoc = new XmlDocument();
+                collisionsDoc.Load(collisionsXml);
+
+                var collisionsNode = collisionsDoc.FirstChild;
+                foreach (XmlNode collisionNode in collisionsNode.ChildNodes)
+                {
+                    if (collisionNode.NodeType == XmlNodeType.Comment)
+                        continue;
+
+                    var collision = new CollisionInfo();
+
+                    string type = collisionNode.SelectSingleNode("Type").InnerText;
+                    collision.Type = (CollisionType)Enum.Parse(typeof(CollisionType), type);
+
+                    var bboxNode = collisionNode.SelectSingleNode("BoundingBox");
+                    Vector3 min = ParseVector3Xml(bboxNode.SelectSingleNode("Min"));
+                    Vector3 max = ParseVector3Xml(bboxNode.SelectSingleNode("Max"));
+
+                    collision.BoundingBox = new BoundingBox(
+                        new Vector3(min.X, min.Z, -max.Y),
+                        new Vector3(max.X, max.Z, -min.Y));
+
+                    var transformNode = collisionNode.SelectSingleNode("Transform");
+
+                    Vector3 location = ParseVector3Xml(transformNode.SelectSingleNode("Location"));
+                    Quaternion quaternion = ParseQuaternionXml(transformNode.SelectSingleNode("Quaternion"));
+                    Vector3 scale = ParseVector3Xml(transformNode.SelectSingleNode("Scale"));
+
+                    collision.Transform = FromBlenderTransform(location, quaternion, scale);
+
+                    collisions.Add(collision);
+                }
+            }
+
             // @todo: light importing
 
-            // @todo: get mesh type from the export
-            MeshAsset sample = rigidSample;
-            var sampleEntry = App.AssetManager.GetEbxEntry(sample.Name);
+            var sampleEntry = App.AssetManager.GetEbxEntry(meshSample.Name);
 
             var entities = new List<Entities.Entity>();
             int count = 0;
@@ -278,7 +327,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 {
                     obj.Created = true;
 
-                    var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(sample.GetType().Name), sample, obj);
+                    var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(meshSample.GetType().Name), meshSample, obj);
                     var blueprint = CreateAsset(blueprintAssetPath, TypeLibrary.GetType("ObjectBlueprint"));
 
                     var blueprintAsset = App.AssetManager.GetEbx(blueprint);
@@ -319,7 +368,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 if (!obj.Created)
                     continue;
 
-                task.Update("Importing textures for " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
+                task.Update("Importing materials for " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
 
                 var dbEntry = MeshVariationDb.GetVariations(sampleEntry.Guid);
                 MeshVariation mv = null;
@@ -329,7 +378,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 }
 
                 MeshVariationMaterial material = null;
-                foreach (var matRef in sample.Materials)
+                foreach (var matRef in meshSample.Materials)
                 {
                     if (mv == null)
                         break;
@@ -421,7 +470,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 var blueprint = App.AssetManager.GetEbxEntry(blueprintAssetPath);
                 BundleManager.Instance.Manage(editor.AddedLayer.EnumerateBundles().ToList(), blueprint, material);
 
-                var transform = obj.Transform * Matrix.Translation(SharpDXUtils.FromVec3(importSettings.ObjectOffset));
+                var transform = obj.Transform * offset;
 
                 entities.AddRange(editor.AddEntities(App.AssetManager.GetEbxEntry(blueprintAssetPath), 1, transform,
                     addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, selectEntity: false));
@@ -446,32 +495,26 @@ namespace LevelEditorPlugin.Editors.Importers
                 foreach (var obj in objects)
                 {
                     task.Update("Creating collision", progress: ((double)count / objects.Count) * 100.0);
-                    var transform = Matrix.Translation(obj.LocalCenter) * obj.Transform * Matrix.Translation(SharpDXUtils.FromVec3(importSettings.ObjectOffset));
-                    
-                    var halfExtents = (obj.SharpDXBoundingBox.Maximum - obj.SharpDXBoundingBox.Minimum) * 0.5f;
-                    var obbObj = Utils.CreateEntityData(typeof(OBBCollisionEntityData), collisionLayerAsset) as OBBCollisionEntityData;
-                    var rigidBodyObj = Utils.CreateEntityData(typeof(RigidBodyData), collisionLayerAsset) as RigidBodyData;
 
-                    ApplyRigidBodyDefaults(rigidBodyObj);
-                    obbObj.Transform = Entities.Entity.MakeLinearTransform(transform);
-                    obbObj.HalfExtents = new Vec3() { x = halfExtents.X, y = halfExtents.Y, z = halfExtents.Z };
-                    obbObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
-                    obbObj.Enabled = true;
-                    collisionLayerAsset.AddObject(obbObj);
-                    collisionLayerAsset.AddObject(rigidBodyObj);
-
-                    var obbEntity = new Entities.OBBCollisionEntity(obbObj, parent);
-                    parent.AddEntity(obbEntity);
-
-                    collisionSceneLayer.AddEntity(obbEntity);
-                    editor.Screen.AddEntity(obbEntity);
-
+                    var transform = obj.Transform * offset;
+                    var collisionEntity = AddCollision(CollisionType.Cube, obj.SharpDXBoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
+                    editor.Screen.AddEntity(collisionEntity);
                     count++;
                 }
             }
             else
             {
-                // @todo: manually made collision
+                count = 0;
+                foreach (var collision in collisions)
+                {
+                    task.Update("Creating collision", progress: ((double)count / collisions.Count) * 100.0);
+
+                    var transform = collision.Transform * offset;
+                    var collisionEntity = AddCollision(collision.Type, collision.BoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
+                    editor.Screen.AddEntity(collisionEntity);
+
+                    count++;
+                }
             }
 
             MeshVariationDb.LoadModifiedVariations();
@@ -513,6 +556,62 @@ namespace LevelEditorPlugin.Editors.Importers
             var convertedRotation = conversion * Matrix.RotationQuaternion(quaternion) * Matrix.Transpose(conversion);
 
             return Matrix.Scaling(convertedScale) * convertedRotation * Matrix.Translation(convertedTrans);
+        }
+
+        private Entities.Entity AddCollision(CollisionType type, BoundingBox bbox, Matrix objTransform, EbxAsset asset, SceneLayer layer, ReferenceObject parent)
+        {
+            var localCenter = (bbox.Minimum + bbox.Maximum) * 0.5f;
+            var localHalfExtents = (bbox.Maximum - bbox.Minimum) * 0.5f;
+
+            var translation = Vector3.TransformCoordinate(localCenter, objTransform);
+            if (objTransform.Determinant() < 0)
+            {
+                objTransform = Matrix.Scaling(-1, 1, 1) * objTransform;
+            }
+
+            objTransform.Decompose(out Vector3 scale, out Quaternion rotation, out _);
+            var transform = Matrix.RotationQuaternion(rotation) * Matrix.Translation(translation);
+
+            var halfExtents = new Vector3(
+                localHalfExtents.X * Math.Abs(scale.X),
+                localHalfExtents.Y * Math.Abs(scale.Y),
+                localHalfExtents.Z * Math.Abs(scale.Z));
+
+            var rigidBodyObj = Utils.CreateEntityData(typeof(RigidBodyData), asset) as RigidBodyData;
+            ApplyRigidBodyDefaults(rigidBodyObj);
+            asset.AddObject(rigidBodyObj);
+
+            Entities.Entity collisionEntity;
+            switch (type)
+            {
+                case CollisionType.Sphere:
+                    var sphereObj = Utils.CreateEntityData(typeof(SphereCollisionEntityData), asset) as SphereCollisionEntityData;
+
+                    sphereObj.Transform = Entities.Entity.MakeLinearTransform(transform);
+                    sphereObj.Radius = Math.Max(halfExtents.X, Math.Max(halfExtents.Y, halfExtents.Z));
+                    sphereObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
+                    sphereObj.Enabled = true;
+                    asset.AddObject(sphereObj);
+
+                    collisionEntity = new Entities.SphereCollisionEntity(sphereObj, parent);
+                    break;
+
+                default: // cube
+                    var obbObj = Utils.CreateEntityData(typeof(OBBCollisionEntityData), asset) as OBBCollisionEntityData;
+                    obbObj.Transform = Entities.Entity.MakeLinearTransform(transform);
+                    obbObj.HalfExtents = new Vec3() { x = halfExtents.X, y = halfExtents.Y, z = halfExtents.Z };
+                    obbObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
+                    obbObj.Enabled = true;
+                    asset.AddObject(obbObj);
+
+                    collisionEntity = new Entities.OBBCollisionEntity(obbObj, parent);
+                    break;
+            }
+
+            parent.AddEntity(collisionEntity);
+            layer.AddEntity(collisionEntity);
+            
+            return collisionEntity;
         }
 
         private void ApplyObjectBlueprintDefaults(EbxAsset blueprintAsset, ObjectBlueprint objBlueprint, EbxAssetEntry mesh)
@@ -662,6 +761,10 @@ namespace LevelEditorPlugin.Editors.Importers
 
             var mat = obj.Material;
 
+            Vec4 tint = mat == null
+                ? new Vec4 { x = 1, y = 1, z = 1, w = 1 }
+                : new Vec4 { x = mat.Tint.X, y = mat.Tint.Y, z = mat.Tint.Z, w = 1.0f };
+
             var meshMaterial = Utils.CreateEntityData(typeof(MeshMaterial), asset) as MeshMaterial;
             meshMaterial.Shader = new SurfaceShaderInstanceDataStruct
             {
@@ -676,7 +779,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     {
                         ParameterName = "Tint_Color",
                         ParameterType = FrostySdk.Ebx.ShaderParameterType.ShaderParameterType_Vec4,
-                        Value = new Vec4 { x = mat.Tint.X, y = mat.Tint.Y, z = mat.Tint.Z, w = 1.0f }
+                        Value = tint
                     }
                 }
             };
@@ -1089,30 +1192,8 @@ namespace LevelEditorPlugin.Editors.Importers
         // find a mesh with a single section for all mesh types to duplicate later
         private void GetSamples()
         {
-            if (skinnedSample != null && rigidSample != null && compositeSample != null && textureSample != null)
+            if (meshSample != null && textureSample != null)
                 return;
-
-            foreach (var skinned in App.AssetManager.EnumerateEbx("SkinnedMeshAsset"))
-            {
-                if (!skinned.Bundles.Any(b => App.AssetManager.GetBundleEntry(b).Type == BundleType.SubLevel))
-                    continue;
-
-                if (!CheckReferencesTo(skinned, "ObjectBlueprint"))
-                    continue;
-
-                if (App.AssetManager.GetEbx(skinned).RootObject is SkinnedMeshAsset asset)
-                {
-                    if (asset.Materials.Count != 1)
-                        continue;
-
-                    int lods = App.AssetManager.GetResAs<MeshSet>(App.AssetManager.GetResEntry(asset.MeshSetResource)).Lods.Count;
-                    if (lods != LodCount)
-                        continue;
-
-                    skinnedSample = asset;
-                    break;
-                }
-            }
 
             foreach (var rigid in App.AssetManager.EnumerateEbx("RigidMeshAsset"))
             {
@@ -1131,29 +1212,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     if (lods != LodCount)
                         continue;
 
-                    rigidSample = asset;
-                    break;
-                }
-            }
-
-            foreach (var composite in App.AssetManager.EnumerateEbx("CompositeMeshAsset"))
-            {
-                if (!composite.Bundles.Any(b => App.AssetManager.GetBundleEntry(b).Type == BundleType.SubLevel))
-                    continue;
-
-                if (!CheckReferencesTo(composite, "ObjectBlueprint"))
-                    continue;
-
-                if (App.AssetManager.GetEbx(composite).RootObject is CompositeMeshAsset asset)
-                {
-                    if (asset.Materials.Count != 1)
-                        continue;
-
-                    int lods = App.AssetManager.GetResAs<MeshSet>(App.AssetManager.GetResEntry(asset.MeshSetResource)).Lods.Count;
-                    if (lods != LodCount)
-                        continue;
-
-                    compositeSample = asset;
+                    meshSample = asset;
                     break;
                 }
             }
