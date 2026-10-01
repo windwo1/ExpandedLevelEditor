@@ -38,7 +38,7 @@ namespace LevelEditorPlugin.Editors.Importers
         {
             [DisplayName("Overwrite Level")]
             public bool OverwriteLevel { get; set; } = true;
-            [DisplayName("Generate Collision")]
+            [DisplayName("Auto-Generate Collision")]
             public bool GenerateCollision { get; set; } = true;
             [DisplayName("Object Offset")]
             public Vec3 ObjectOffset { get; set; }
@@ -318,7 +318,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
             foreach (var obj in objects)
             {
-                task.Update("Importing object " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
+                task.Update("Importing mesh " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
 
                 string meshAssetPath = $"_leveleditor/Meshes/{obj.Name}_Mesh";
                 string blueprintAssetPath = $"_leveleditor/Meshes/{obj.Name}";
@@ -1258,7 +1258,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 case ProfileVersion.PlantsVsZombiesGardenWarfare2:
                     return new GameDefaults
                     {
-                        Shader = App.AssetManager.GetEbxEntry("art/Shaders/Props/PBR_Object_Base"),
+                        Shader = App.AssetManager.GetEbxEntry("art/Shaders/Props/PBR_Object_Base_Alphatest"),
                         ASMTexture = App.AssetManager.GetEbxEntry("art/Textures/Generic/Default_ASM"),
                         ColorTexture = App.AssetManager.GetEbxEntry("art/Textures/Generic/Default_Color"),
                         NormalTexture = App.AssetManager.GetEbxEntry("art/Textures/Generic/Default_Normal"),

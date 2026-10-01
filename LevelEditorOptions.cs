@@ -75,7 +75,7 @@ namespace LevelEditorPlugin
         public bool OverwriteLevel { get; set; } = true;
 
         [Category("Importing")]
-        [DisplayName("Generate Collision")]
+        [DisplayName("Auto-Generate Collision")]
         [Description("Whether objects will generate collision (from their BoundingBox). If off, collision can be made manually")]
         public bool GenerateCollision { get; set; } = true;
 

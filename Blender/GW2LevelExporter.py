@@ -35,7 +35,7 @@ class ExportFolderOperator(Operator):
         written_meshes = set()
 
         collision_collection_name = "Collision"
-        collision_collection = bpy.data.collections[collision_collection_name]
+        collision_collection = bpy.data.collections[collision_collection_name] if collision_collection_name in bpy.data.collections else None
 
         use_undo = context.preferences.edit.use_global_undo
         context.preferences.edit.use_global_undo = False
@@ -203,7 +203,12 @@ class ExportFolderOperator(Operator):
                 name_element = ET.SubElement(material_element, "Name")
                 name_element.text = mat.name
 
-                tint = mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value
+                bsdf = mat.node_tree.nodes["Principled BSDF"]
+                base_color = bsdf.inputs["Base Color"]
+                tint = base_color.default_value
+                if base_color.is_linked:
+                    tint = (1, 1, 1)
+
                 tint_element = ET.SubElement(material_element, "Tint")
                 write_vec3(tint_element, Vector((tint[0], tint[1], tint[2])))
 
@@ -222,6 +227,19 @@ class ExportFolderOperator(Operator):
                         continue
 
                     texture_path = bpy.path.abspath(image.filepath)
+                    if image.packed_file:
+                        textures_path = os.path.join(self.directory, "Textures")
+                        os.makedirs(textures_path, exist_ok=True)
+
+                        name = fix_filename(image.name)
+                        if not os.path.splitext(name)[1]:
+                            name += "." + image.file_format.lower()
+
+                        path = os.path.join(textures_path, name)
+                        with open(path, "wb") as f:
+                            f.write(image.packed_file.data)
+
+                        texture_path = path
 
                     texture_element = ET.SubElement(textures_element, "Texture")
                     texture_element.text = texture_path
