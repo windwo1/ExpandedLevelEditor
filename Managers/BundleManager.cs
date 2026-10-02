@@ -28,7 +28,10 @@ namespace LevelEditorPlugin.Managers
         private EbxAssetEntry meshVarDb;
         private MeshVariationMaterial materialRef;
 
-        public void Manage(List<int> bundles, EbxAssetEntry rootEntry, MeshVariationMaterial material = null)
+        private HashSet<EbxAssetEntry> visited = new HashSet<EbxAssetEntry>();
+        private HashSet<EbxAssetEntry> resManaged = new HashSet<EbxAssetEntry>();
+
+        public void Manage(List<int> bundles, EbxAssetEntry rootEntry, MeshVariationMaterial material = null, bool clear = true)
         {
             foreach (int bundle in bundles)
             {
@@ -39,10 +42,21 @@ namespace LevelEditorPlugin.Managers
             FindMeshVarDb(bundles);
 
             materialRef = material;
-            Manage(bundles, rootEntry, new HashSet<EbxAssetEntry>());
+            Manage(bundles, rootEntry);
+
+            if (clear)
+            {
+                Clear();
+            }
         }
 
-        private void Manage(List<int> bundles, EbxAssetEntry rootEntry, HashSet<EbxAssetEntry> visited)
+        public void Clear()
+        {
+            meshVarDb = null;
+            visited.Clear();
+        }
+
+        private void Manage(List<int> bundles, EbxAssetEntry rootEntry)
         {
             if (!visited.Add(rootEntry))
                 return;
@@ -58,23 +72,26 @@ namespace LevelEditorPlugin.Managers
                 rootEntry.AddedBundles.Add(bundle);
             }
 
-            ManageRes(bundles, rootEntry, visited);
+            ManageRes(bundles, rootEntry);
             foreach (var guid in rootEntry.EnumerateDependencies())
             {
                 var entry = App.AssetManager.GetEbxEntry(guid);
                 bool contains = visited.Contains(entry);
 
-                Manage(bundles, entry, visited);
+                Manage(bundles, entry);
 
                 if (!contains)
                 {
-                    ManageRes(bundles, entry, visited);
+                    ManageRes(bundles, entry);
                 }
             }
         }
 
-        private void ManageRes(List<int> bundles, EbxAssetEntry entry, HashSet<EbxAssetEntry> visited)
+        private void ManageRes(List<int> bundles, EbxAssetEntry entry)
         {
+            if (!resManaged.Add(entry))
+                return;
+
             var asset = App.AssetManager.GetEbx(entry);
             object rootObject = asset.RootObject;
 
@@ -132,8 +149,8 @@ namespace LevelEditorPlugin.Managers
                     foreach (var texParam in texParams)
                     {
                         var texEntry = App.AssetManager.GetEbxEntry(texParam.Value.External.FileGuid);
-                        Manage(bundles, texEntry, visited);
-                        ManageRes(bundles, texEntry, visited);
+                        Manage(bundles, texEntry);
+                        ManageRes(bundles, texEntry);
 
                         matTexParams.Add(new TextureShaderParameter
                         {
@@ -242,7 +259,8 @@ namespace LevelEditorPlugin.Managers
 
         private void FindMeshVarDb(List<int> bundles)
         {
-            meshVarDb = null;
+            if (meshVarDb != null)
+                return;
 
             foreach (var bundle in bundles)
             {

@@ -406,7 +406,7 @@ namespace LevelEditorPlugin.Editors
 
         public List<Entities.Entity> AddEntities(EbxAssetEntry asset, int count, Matrix transform, 
             SceneLayer addedLayer = null, Entities.Entity parentOverride = null, 
-            bool manageBundles = true, bool showTaskWindow = true, bool selectEntity = true)
+            bool manageBundles = true, bool showTaskWindow = true, bool selectEntity = true, bool addToScreen = true)
         {
             int maxCount = count;
 
@@ -548,7 +548,11 @@ namespace LevelEditorPlugin.Editors
                     App.AssetManager.ModifyEbx(layerEntry.Name, layerAsset);
 
                     layer.AddEntity(entity);
-                    screen.AddEntity(entity, selectEntity);
+
+                    if (addToScreen)
+                    {
+                        screen.AddEntity(entity, selectEntity);
+                    }
 
                     entities.Add(entity);
                     count--;

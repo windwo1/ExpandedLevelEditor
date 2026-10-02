@@ -18,7 +18,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Xml;
@@ -68,7 +67,13 @@ namespace LevelEditorPlugin.Editors.Importers
         {
             public string Name { get; set; }
             public Vector3 Tint { get; set; }
-            public List<string> Textures { get; set; }
+            public List<TextureInfo> Textures { get; set; }
+        }
+
+        private class TextureInfo
+        {
+            public string Path { get; set; }
+            public string Type { get; set; }
         }
 
         private enum CollisionType
@@ -89,6 +94,9 @@ namespace LevelEditorPlugin.Editors.Importers
         private EbxAssetEntry levelEntry;
         private EbxAsset levelAsset;
         private ReferenceObject world;
+
+        private List<Entities.Entity> meshEntities = new List<Entities.Entity>();
+        private List<Entities.Entity> collisionEntities = new List<Entities.Entity>();
 
         private GameDefaults gameDefaults;
 
@@ -149,6 +157,20 @@ namespace LevelEditorPlugin.Editors.Importers
                     {
                         layer = ImportLevel(task, levelPath, layer, editor);
                     });
+
+                    // AddEntity shouldnt be called in the task window
+                    foreach (var entity in meshEntities)
+                    {
+                        editor.Screen.AddEntity(entity);
+                    }
+                    foreach (var entity in collisionEntities)
+                    {
+                        editor.Screen.AddEntity(entity);
+                    }
+                    foreach (var entity in meshEntities)
+                    {
+                        editor.UpdateMeshMaterials(entity);
+                    }
 
                     if (layer != null)
                     {
@@ -220,10 +242,14 @@ namespace LevelEditorPlugin.Editors.Importers
                 material.Name = matNode.SelectSingleNode("Name").InnerText;
                 material.Tint = ParseVector3Xml(matNode.SelectSingleNode("Tint"));
 
-                material.Textures = new List<string>();
+                material.Textures = new List<TextureInfo>();
                 foreach (XmlNode texNode in matNode.SelectSingleNode("Textures").ChildNodes)
                 {
-                    material.Textures.Add(texNode.InnerText);
+                    material.Textures.Add(new TextureInfo
+                    {
+                        Path = texNode.SelectSingleNode("Path").InnerText,
+                        Type = texNode.SelectSingleNode("Type").InnerText
+                    });
                 }
 
                 materials.Add(material);
@@ -320,8 +346,8 @@ namespace LevelEditorPlugin.Editors.Importers
             {
                 task.Update("Importing mesh " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
 
-                string meshAssetPath = $"_leveleditor/Meshes/{obj.Name}_Mesh";
-                string blueprintAssetPath = $"_leveleditor/Meshes/{obj.Name}";
+                string meshAssetPath = $"_leveleditor/Meshes/{obj.MeshName}_Mesh";
+                string blueprintAssetPath = $"_leveleditor/Meshes/{obj.MeshName}";
 
                 if (App.AssetManager.GetEbxEntry(meshAssetPath) == null || App.AssetManager.GetEbxEntry(blueprintAssetPath) == null)
                 {
@@ -342,7 +368,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
                     try
                     {
-                        string fbx = Path.Combine(levelPath, "Meshes", obj.MeshName);
+                        string fbx = Path.Combine(levelPath, "Meshes", obj.MeshName + ".fbx");
 
                         if (File.Exists(fbx))
                         {
@@ -362,120 +388,139 @@ namespace LevelEditorPlugin.Editors.Importers
                 count++;
             }
 
-            count = 0;
-            foreach (var obj in objects)
+            try
             {
-                if (!obj.Created)
-                    continue;
+                count = 0;
+                int createdCount = objects.Where(o => o.Created).Count();
 
-                task.Update("Importing materials for " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
-
-                var dbEntry = MeshVariationDb.GetVariations(sampleEntry.Guid);
-                MeshVariation mv = null;
-                if (dbEntry != null)
+                foreach (var obj in objects)
                 {
-                    mv = dbEntry.GetVariation(MeshVariationDbEntry.ROOT_VARIATION);
-                }
+                    string blueprintAssetPath = $"_leveleditor/Meshes/{obj.MeshName}";
+                    var blueprint = App.AssetManager.GetEbxEntry(blueprintAssetPath);
 
-                MeshVariationMaterial material = null;
-                foreach (var matRef in meshSample.Materials)
-                {
-                    if (mv == null)
-                        break;
-
-                    var mat = matRef.Internal as MeshMaterial;
-
-                    int idx = mv.Materials.FindIndex(a => a.MaterialGuid == mat.GetInstanceGuid().ExportedGuid);
-                    if (idx == -1)
-                        continue;
-
-                    material = mv.Materials[idx];
-                }
-                if (material != null)
-                {
-                    var texParams = new List<TextureShaderParameter>();
-                    var addedParams = new List<string>();
-
-                    if (obj.Material != null)
+                    if (obj.Created)
                     {
-                        foreach (string texPath in obj.Material.Textures)
+                        task.Update("Importing materials for " + obj.MeshName, progress: ((double)count / createdCount) * 100.0);
+
+                        var dbEntry = MeshVariationDb.GetVariations(sampleEntry.Guid);
+                        MeshVariation mv = null;
+                        if (dbEntry != null)
                         {
-                            string paramName = "";
-                            string texName = Path.GetFileNameWithoutExtension(texPath);
-                            string texNameLower = texName.ToLower();
-
-                            // @todo: support for other game textures
-                            foreach (string name in colorNames)
-                            {
-                                if (texNameLower.EndsWith(name))
-                                {
-                                    paramName = "Color";
-                                    break;
-                                }
-                            }
-                            foreach (string name in normalNames)
-                            {
-                                if (texNameLower.EndsWith(name))
-                                {
-                                    paramName = "Normal";
-                                    break;
-                                }
-                            }
-                            if (texName.EndsWith("_ASM")) paramName = "ASM";
-                            if (texName.EndsWith("_ETT")) paramName = "ETT";
-
-                            // most likely a color/diffuse texture if there is only one
-                            if (obj.Material.Textures.Count == 1)
-                                paramName = "Color";
-
-                            if (string.IsNullOrEmpty(paramName))
-                                continue;
-
-                            EbxAssetEntry texEntry = CreateTexture("_leveleditor/Textures/" + texName, textureSample, texPath);
-                            if (texEntry == null)
-                            {
-                                App.Logger.LogError($"Failed to import {Path.GetFileName(texPath)}, this is most likely because of the texture format not being supported.");
-                                continue;
-                            }
-
-                            AddTexParam(paramName, texEntry);
-
-                            addedParams.Add(paramName);
+                            mv = dbEntry.GetVariation(MeshVariationDbEntry.ROOT_VARIATION);
                         }
-                    }
 
-                    if (!addedParams.Contains("ASM") && gameDefaults.ASMTexture != null) AddTexParam("ASM", gameDefaults.ASMTexture);
-                    if (!addedParams.Contains("Color") && gameDefaults.ColorTexture != null) AddTexParam("Color", gameDefaults.ColorTexture);
-                    if (!addedParams.Contains("Normal") && gameDefaults.NormalTexture != null) AddTexParam("Normal", gameDefaults.NormalTexture);
-                    if (!addedParams.Contains("ETT") && gameDefaults.ETTTexture != null) AddTexParam("ETT", gameDefaults.ETTTexture);
-
-                    void AddTexParam(string name, EbxAssetEntry entry)
-                    {
-                        texParams.Add(new TextureShaderParameter
+                        MeshVariationMaterial material = null;
+                        foreach (var matRef in meshSample.Materials)
                         {
-                            ParameterName = name,
-                            Value = new PointerRef(new EbxImportReference
+                            if (mv == null)
+                                break;
+
+                            var mat = matRef.Internal as MeshMaterial;
+
+                            int idx = mv.Materials.FindIndex(a => a.MaterialGuid == mat.GetInstanceGuid().ExportedGuid);
+                            if (idx == -1)
+                                continue;
+
+                            material = mv.Materials[idx];
+                        }
+                        if (material != null)
+                        {
+                            var texParams = new List<TextureShaderParameter>();
+                            var addedParams = new List<string>();
+
+                            if (obj.Material != null)
                             {
-                                FileGuid = entry.Guid,
-                                ClassGuid = ((TextureAsset)App.AssetManager.GetEbx(entry).RootObject).__InstanceGuid.ExportedGuid
-                            })
-                        });
+                                foreach (var texture in obj.Material.Textures)
+                                {
+                                    string texPath = texture.Path;
+                                    string paramName = "";
+                                    string texName = Path.GetFileNameWithoutExtension(texPath);
+
+                                    if (!string.IsNullOrEmpty(texture.Type))
+                                    {
+                                        paramName = texture.Type;
+                                    }
+                                    else
+                                    {
+                                        string texNameLower = texName.ToLower();
+
+                                        // @todo: support for other game textures
+                                        foreach (string name in colorNames)
+                                        {
+                                            if (texNameLower.EndsWith(name))
+                                            {
+                                                paramName = "Color";
+                                                break;
+                                            }
+                                        }
+                                        foreach (string name in normalNames)
+                                        {
+                                            if (texNameLower.EndsWith(name))
+                                            {
+                                                paramName = "Normal";
+                                                break;
+                                            }
+                                        }
+                                        if (texName.EndsWith("_ASM")) paramName = "ASM";
+                                        if (texName.EndsWith("_ETT")) paramName = "ETT";
+
+                                        // most likely a color/diffuse texture if there is only one
+                                        if (obj.Material.Textures.Count == 1)
+                                            paramName = "Color";
+
+                                        if (string.IsNullOrEmpty(paramName))
+                                            continue;
+                                    }
+
+                                    EbxAssetEntry texEntry = CreateTexture("_leveleditor/Textures/" + texName, textureSample, texPath);
+                                    if (texEntry == null)
+                                    {
+                                        App.Logger.LogError($"Failed to import {Path.GetFileName(texPath)}, this is most likely because of the texture format not being supported.");
+                                        continue;
+                                    }
+
+                                    AddTexParam(paramName, texEntry);
+
+                                    addedParams.Add(paramName);
+                                }
+                            }
+
+                            if (!addedParams.Contains("ASM") && gameDefaults.ASMTexture != null) AddTexParam("ASM", gameDefaults.ASMTexture);
+                            if (!addedParams.Contains("Color") && gameDefaults.ColorTexture != null) AddTexParam("Color", gameDefaults.ColorTexture);
+                            if (!addedParams.Contains("Normal") && gameDefaults.NormalTexture != null) AddTexParam("Normal", gameDefaults.NormalTexture);
+                            if (!addedParams.Contains("ETT") && gameDefaults.ETTTexture != null) AddTexParam("ETT", gameDefaults.ETTTexture);
+
+                            void AddTexParam(string name, EbxAssetEntry entry)
+                            {
+                                texParams.Add(new TextureShaderParameter
+                                {
+                                    ParameterName = name,
+                                    Value = new PointerRef(new EbxImportReference
+                                    {
+                                        FileGuid = entry.Guid,
+                                        ClassGuid = ((TextureAsset)App.AssetManager.GetEbx(entry).RootObject).__InstanceGuid.ExportedGuid
+                                    })
+                                });
+                            }
+
+                            material.TextureParameters = texParams;
+                        }
+
+                        BundleManager.Instance.Manage(editor.AddedLayer.EnumerateBundles().ToList(), blueprint, material,
+                            clear: false);
+
+                        count++;
                     }
 
-                    material.TextureParameters = texParams;
+                    var transform = obj.Transform * offset;
+
+                    entities.AddRange(editor.AddEntities(blueprint, 1, transform,
+                        addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, selectEntity: false, addToScreen: false));
                 }
-
-                string blueprintAssetPath = $"_leveleditor/Meshes/{obj.Name}";
-
-                var blueprint = App.AssetManager.GetEbxEntry(blueprintAssetPath);
-                BundleManager.Instance.Manage(editor.AddedLayer.EnumerateBundles().ToList(), blueprint, material);
-
-                var transform = obj.Transform * offset;
-
-                entities.AddRange(editor.AddEntities(App.AssetManager.GetEbxEntry(blueprintAssetPath), 1, transform,
-                    addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, selectEntity: false));
-
-                count++;
+            }
+            finally
+            {
+                BundleManager.Instance.Clear();
             }
 
             task.Update("Creating collision");
@@ -498,7 +543,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
                     var transform = obj.Transform * offset;
                     var collisionEntity = AddCollision(CollisionType.Cube, obj.SharpDXBoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
-                    editor.Screen.AddEntity(collisionEntity);
+                    collisionEntities.Add(collisionEntity);
                     count++;
                 }
             }
@@ -511,17 +556,14 @@ namespace LevelEditorPlugin.Editors.Importers
 
                     var transform = collision.Transform * offset;
                     var collisionEntity = AddCollision(collision.Type, collision.BoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
-                    editor.Screen.AddEntity(collisionEntity);
+                    collisionEntities.Add(collisionEntity);
 
                     count++;
                 }
             }
 
             MeshVariationDb.LoadModifiedVariations();
-            foreach (var entity in entities)
-            {
-                editor.UpdateMeshMaterials(entity);
-            }
+            meshEntities.AddRange(entities);
 
             return root;
         }
@@ -885,6 +927,8 @@ namespace LevelEditorPlugin.Editors.Importers
                     break;
             }
 
+            rng.Dispose();
+
             Guid newGuid;
             using (NativeReader reader = new NativeReader(App.AssetManager.GetChunk(entry)))
             {
@@ -943,7 +987,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 resizeWidth = 0
             };
 
-            byte[] buf = NativeReader.ReadInStream(new FileStream(texturePath, FileMode.Open, FileAccess.Read));
+            byte[] buf = File.ReadAllBytes(texturePath);
             FrostyTextureEditor.ConvertImageToDDS(buf, buf.Length, format, options, ref blob);
             MemoryStream memStream = new MemoryStream(blob.Data);
 

@@ -62,10 +62,11 @@ class ExportFolderOperator(Operator):
                 exported_meshes[obj.name] = mesh_name
                 objects.append(obj)
 
-                if mesh_name in written_meshes:
+                mesh_key = f"{remove_suffix(mesh_name)}:{len(obj.data.vertices)}"
+                if mesh_key in written_meshes:
                     continue
 
-                written_meshes.add(mesh_name)
+                written_meshes.add(mesh_key)
 
                 exported_obj = obj.copy()
                 exported_obj.data = obj.data.copy()
@@ -180,7 +181,7 @@ class ExportFolderOperator(Operator):
                 name_element = ET.SubElement(obj_element, "Name")
                 name_element.text = fix_filename(obj.name)
                 mesh_element = ET.SubElement(obj_element, "Mesh")
-                mesh_element.text = exported_meshes[obj.name] + ".fbx"
+                mesh_element.text = exported_meshes[obj.name]
                 mat_element = ET.SubElement(obj_element, "Material")
                 mat_element.text = mat_name
 
@@ -206,11 +207,16 @@ class ExportFolderOperator(Operator):
                 bsdf = mat.node_tree.nodes["Principled BSDF"]
                 base_color = bsdf.inputs["Base Color"]
                 tint = base_color.default_value
+
                 if base_color.is_linked:
                     tint = (1, 1, 1)
 
-                tint_element = ET.SubElement(material_element, "Tint")
-                write_vec3(tint_element, Vector((tint[0], tint[1], tint[2])))
+                    mix = base_color.links[0].from_node
+                    if mix.type == "MIX" and mix.data_type == "RGBA":
+                        tint_input = mix.inputs[7]
+
+                        if not tint_input.is_linked:
+                            tint = tint_input.default_value
 
                 textures_element = ET.SubElement(material_element, "Textures")
 
@@ -241,8 +247,19 @@ class ExportFolderOperator(Operator):
 
                         texture_path = path
 
+                    texture_type = ""
+                    if base_color.is_linked and node == base_color.links[0].from_node:
+                        texture_type = "Color"
+
                     texture_element = ET.SubElement(textures_element, "Texture")
-                    texture_element.text = texture_path
+
+                    path_element = ET.SubElement(texture_element, "Path")
+                    path_element.text = texture_path
+                    type_element = ET.SubElement(texture_element, "Type")
+                    type_element.text = texture_type
+
+                tint_element = ET.SubElement(material_element, "Tint")
+                write_vec3(tint_element, Vector((tint[0], tint[1], tint[2])))
 
             tree = ET.ElementTree(root)
             ET.indent(tree, space="    ")
