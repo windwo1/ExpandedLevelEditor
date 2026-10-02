@@ -54,6 +54,7 @@ namespace LevelEditorPlugin.Managers
         {
             meshVarDb = null;
             visited.Clear();
+            resManaged.Clear();
         }
 
         private void Manage(List<int> bundles, EbxAssetEntry rootEntry)
