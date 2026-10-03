@@ -35,6 +35,8 @@ namespace LevelEditorPlugin.Editors.Importers
     {
         private class LevelImportSettings
         {
+            [DisplayName("Level Name")]
+            public string LevelName { get; set; }
             [DisplayName("Overwrite Level")]
             public bool OverwriteLevel { get; set; } = true;
             [DisplayName("Auto-Generate Collision")]
@@ -130,6 +132,7 @@ namespace LevelEditorPlugin.Editors.Importers
         {
             importSettings = new LevelImportSettings
             {
+                LevelName = DateTime.Now.ToString("yyyy-MM-dd_HHmmss"),
                 OverwriteLevel = Config.Get<bool>("OverwriteLevel", true),
                 GenerateCollision = Config.Get<bool>("GenerateCollision", true),
                 ObjectOffset = Config.Get<Vec3>("ObjectOffset", new Vec3())
@@ -346,8 +349,8 @@ namespace LevelEditorPlugin.Editors.Importers
             {
                 task.Update("Importing mesh " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
 
-                string meshAssetPath = $"_leveleditor/Meshes/{obj.MeshName}_Mesh";
-                string blueprintAssetPath = $"_leveleditor/Meshes/{obj.MeshName}";
+                string meshAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}_Mesh";
+                string blueprintAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}";
 
                 if (App.AssetManager.GetEbxEntry(meshAssetPath) == null || App.AssetManager.GetEbxEntry(blueprintAssetPath) == null)
                 {
@@ -395,7 +398,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
                 foreach (var obj in objects)
                 {
-                    string blueprintAssetPath = $"_leveleditor/Meshes/{obj.MeshName}";
+                    string blueprintAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}";
                     var blueprint = App.AssetManager.GetEbxEntry(blueprintAssetPath);
 
                     if (obj.Created)
@@ -472,7 +475,7 @@ namespace LevelEditorPlugin.Editors.Importers
                                             continue;
                                     }
 
-                                    EbxAssetEntry texEntry = CreateTexture("_leveleditor/Textures/" + texName, textureSample, texPath);
+                                    EbxAssetEntry texEntry = CreateTexture($"_leveleditor/{importSettings.LevelName}/Textures/{texName}", textureSample, texPath);
                                     if (texEntry == null)
                                     {
                                         App.Logger.LogError($"Failed to import {Path.GetFileName(texPath)}, this is most likely because of the texture format not being supported.");
@@ -619,7 +622,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 localHalfExtents.Y * Math.Abs(scale.Y),
                 localHalfExtents.Z * Math.Abs(scale.Z));
 
-            var rigidBodyObj = Utils.CreateEntityData(typeof(RigidBodyData), asset) as RigidBodyData;
+            var rigidBodyObj = CreateObject(asset, typeof(RigidBodyData)) as RigidBodyData;
             ApplyRigidBodyDefaults(rigidBodyObj);
             asset.AddObject(rigidBodyObj);
 
@@ -658,9 +661,9 @@ namespace LevelEditorPlugin.Editors.Importers
 
         private void ApplyObjectBlueprintDefaults(EbxAsset blueprintAsset, ObjectBlueprint objBlueprint, EbxAssetEntry mesh)
         {
-            var staticModelEntity = Utils.CreateEntityData(typeof(StaticModelEntityData), blueprintAsset) as StaticModelEntityData;
-            var partComponentEntity = Utils.CreateEntityData(typeof(PartComponentData), blueprintAsset) as PartComponentData;
-            var healthState = Utils.CreateEntityData(typeof(HealthStateData), blueprintAsset) as HealthStateData;
+            var staticModelEntity = CreateObject(blueprintAsset, typeof(StaticModelEntityData)) as StaticModelEntityData;
+            var partComponentEntity = CreateObject(blueprintAsset, typeof(PartComponentData)) as PartComponentData;
+            var healthState = CreateObject(blueprintAsset, typeof(HealthStateData)) as HealthStateData;
 
             healthState.CopyDamageToBanger = true;
             healthState.PhysicsEnabled = true;
@@ -807,7 +810,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 ? new Vec4 { x = 1, y = 1, z = 1, w = 1 }
                 : new Vec4 { x = mat.Tint.X, y = mat.Tint.Y, z = mat.Tint.Z, w = 1.0f };
 
-            var meshMaterial = Utils.CreateEntityData(typeof(MeshMaterial), asset) as MeshMaterial;
+            var meshMaterial = CreateObject(asset, typeof(MeshMaterial)) as MeshMaterial;
             meshMaterial.Shader = new SurfaceShaderInstanceDataStruct
             {
                 Shader = new PointerRef(new EbxImportReference
@@ -1231,6 +1234,22 @@ namespace LevelEditorPlugin.Editors.Importers
             }
         }
         #endregion
+
+        private object CreateObject(EbxAsset asset, Type type)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                object data = Utils.CreateEntityData(type, asset);
+                asset.AddObject(data);
+
+                if (asset.Objects.Contains(data))
+                    return data;
+            }
+
+            var entry = App.AssetManager.GetEbxEntry(asset.FileGuid);
+            App.Logger.LogError($"Couldn't create object '{type.Name}' in asset '{entry.Name}'");
+            return null;
+        }
 
         // since we currently cant modify the amount of sections in a mesh or create a brand new mesh,
         // find a mesh with a single section for all mesh types to duplicate later

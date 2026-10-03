@@ -606,7 +606,7 @@ namespace LevelEditorPlugin.Editors
                 return;
             }
 
-            App.Logger.LogError($"Failed to delete entity of type {entity.Owner.GetType().Name}. Can only delete static models & prefabs for now.");
+            App.Logger.LogError($"Failed to delete entity of type {entity.Owner.GetType().Name}. Can only delete static models & references for now.");
         }
 
         private PointerRef CreateRef(string assetPath, EbxAsset asset)

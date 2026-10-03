@@ -151,6 +151,7 @@
     <None Remove="Resources\Meshes\Flag.bin" />
     <None Remove="Resources\Meshes\Sprite.bin" />
     <None Remove="Resources\Meshes\TranslateGizmo.bin" />
+    <None Remove="Resources\Textures\SpawnReference.dds" />
     <None Remove="Shaders\GizmoShader.bin" />
     <None Remove="Shaders\GizmoShader.xml" />
     <None Remove="Shaders\LevelShader.bin" />
@@ -289,6 +290,7 @@
     <Resource Include="Resources\Meshes\Flag.bin" />
     <Resource Include="Resources\Meshes\Sprite.bin" />
     <Resource Include="Resources\Meshes\TranslateGizmo.bin" />
+    <Resource Include="Resources\Textures\Sprites\Spawn.dds" />
     <Resource Include="Shaders\GizmoShader.bin" />
     <Resource Include="Shaders\GizmoShader.xml" />
     <Resource Include="Shaders\LevelShader.bin" />

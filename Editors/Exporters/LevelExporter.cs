@@ -49,6 +49,7 @@ namespace LevelEditorPlugin.Editors.Exporters
 
         private SceneLayer rootLayer;
         private LevelExportSettings exportSettings;
+        private TextureExporter textureExporter = new TextureExporter();
 
         public LevelExporter(SceneLayer root)
         {
@@ -267,15 +268,13 @@ namespace LevelEditorPlugin.Editors.Exporters
                     var meshSet = App.AssetManager.GetResAs<Resources.MeshSet>(res);
 
                     exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportSettings.LODIndex, "binary", meshSet);
-                    App.Logger.Log($"{objMeshAsset.Name}: {objMeshAsset.Type}");
 
                     MeshMaterialCollection materials = new MeshMaterialCollection(
                         App.AssetManager.GetEbx(objMeshAsset),
                         new PointerRef()
                     );
 
-                    ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
-                    WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
+                    ExportParameters(materials, objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
 
                     hasExportedMesh[path] = true;
                 }
@@ -450,15 +449,13 @@ namespace LevelEditorPlugin.Editors.Exporters
                 var meshSet = App.AssetManager.GetResAs<Resources.MeshSet>(res);
 
                 exporter.ExportFBX(meshAsset, path, "2017", "Meters", exportSettings.LODIndex, "binary", meshSet);
-                App.Logger.Log($"{objMeshAsset.Name}: {objMeshAsset.Type}");
 
                 MeshMaterialCollection materials = new MeshMaterialCollection(
                     App.AssetManager.GetEbx(objMeshAsset),
                     new PointerRef()
                 );
 
-                ExportParameters(materials, objMeshAsset, objBlueprint, texturePath, meshSet, xmlWriterMaterials);
-                WriteSectionsToXML(materials, xmlWriter, objMeshAsset, objBlueprint, meshSet);
+                ExportParameters(materials, objMeshAsset, texturePath, meshSet, xmlWriterMaterials);
 
                 hasExportedMesh[path] = true;
             }
@@ -507,48 +504,24 @@ namespace LevelEditorPlugin.Editors.Exporters
             xmlWriter.WriteEndElement();
         }
 
-        private void WriteSectionsToXML(MeshMaterialCollection materials, XmlWriter xmlWriter, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, Resources.MeshSet meshSet)
-        {
-            xmlWriter.WriteStartElement("Sections");
-
-            var sections = meshSet.Lods[0].Sections.ToList();
-
-            for (int i = 0; i < Math.Min(materials.Count, sections.Count); i++)
-            {
-                xmlWriter.WriteStartElement("Section");
-                var section = sections[i];
-
-                string materialName = section.Name.Contains("lambert") ? $"{objBlueprint.DisplayName}:{i}" : section.Name;
-                xmlWriter.WriteElementString("Name", materialName);
-
-                xmlWriter.WriteEndElement(); // Section
-            }
-
-            xmlWriter.WriteEndElement(); // Sections
-        }
-
-        private TextureExporter textureExporter = new TextureExporter();
-
-        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, EbxAssetEntry objBlueprint, string path, Resources.MeshSet meshSet, XmlWriter xmlWriter)
+        private void ExportParameters(MeshMaterialCollection materials, EbxAssetEntry meshAssetEbx, string path, Resources.MeshSet meshSet, XmlWriter xmlWriter)
         {
             try
             {
+                MeshAsset meshAsset = App.AssetManager.GetEbx(meshAssetEbx).RootObject as MeshAsset;
+
                 xmlWriter.WriteStartElement("Material");
                 xmlWriter.WriteElementString("Name", meshAssetEbx.Name);
 
-                var sections = meshSet.Lods[0].Sections.ToList();
+                var sections = meshSet.Lods[0].Sections;
 
-                for (int i = 0; i < Math.Min(materials.Count, sections.Count); i++)
+                for (int i = 0; i < sections.Count; i++)
                 {
-                    var material = materials[i];
                     var section = sections[i];
-
-                    // 'lambert' is used in a lot of material names, so when importing to blender it can mix up the materials
-                    // so the mesh name is used instead
-                    string materialName = section.Name.Contains("lambert") ? $"{objBlueprint.DisplayName}:{i}" : section.Name;
-
+                    var material = materials[section.MaterialId];
+                    
                     xmlWriter.WriteStartElement("Material");
-                    xmlWriter.WriteElementString("Name", materialName);
+                    xmlWriter.WriteElementString("Name", section.Name);
 
                     xmlWriter.WriteStartElement("VectorParameters");
 

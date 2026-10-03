@@ -131,14 +131,31 @@ class ImportFolderOperator(Operator):
                 bpy.ops.mesh.customdata_custom_splitnormals_clear()
                 bpy.ops.object.mode_set(mode='OBJECT')
                 obj.select_set(False)
-
-                if terrain_decimation < 1 or terrain_decimation > 0:
-                    decimate = obj.modifiers.new(name="Decimate", type="DECIMATE")
-                    decimate.ratio = terrain_decimation
-                    bpy.ops.object.modifier_apply(modifier=decimate.name)
                     
                 imported_objects.extend(context.selected_objects)
                 self.report({'INFO'}, f"Imported: {filename}")
+
+        if terrain_decimation < 1 and terrain_decimation > 0:
+            bpy.ops.object.select_all(action="DESELECT")
+            objs = list(terrain_collection.objects)
+
+            for obj in objs:
+                obj.select_set(True)
+
+            bpy.context.view_layer.objects.active = objs[0]
+            bpy.ops.object.join()
+            terrain = bpy.context.view_layer.objects.active
+
+            print("Merging terrain by distance")
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.mesh.select_all(action="SELECT")
+            bpy.ops.mesh.remove_doubles(threshold=0.001)
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+            print(f"Decimating terrain (ratio: {terrain_decimation})")
+            decimate = terrain.modifiers.new(name="Decimate", type="DECIMATE")
+            decimate.ratio = terrain_decimation
+            bpy.ops.object.modifier_apply(modifier=decimate.name)
 
         bpy.data.orphans_purge(do_recursive=True)
         gc.collect()
@@ -352,8 +369,6 @@ class ImportFolderOperator(Operator):
             material_root = ET.parse(material_xml_path).getroot()
 
             Obj_Names = []
-            Mesh_Names = []
-            Mesh_Names_Dic = {}
             MatTemp = []
 
             materials = {}
@@ -394,15 +409,6 @@ class ImportFolderOperator(Operator):
                         Obj_Names.append(blueprint.rpartition('/')[2])
                         MatImported.append(imported)
                         MatTemp.append(mat)
-                    
-                        sections = element.find('Sections')
-                        if sections is not None:
-                            for index, section in enumerate(sections.findall('Section')):
-                                full_name = f"{blueprint.rpartition('/')[2]}:{index}"
-
-                                Mesh_Names_Dic[full_name] = section.findtext('Name')
-                                Mesh_Names.append(full_name)
-
 
             Asset_Pool = bpy.data.objects.get("Asset_Pool")
             if not Asset_Pool:
@@ -480,46 +486,18 @@ class ImportFolderOperator(Operator):
                         )
 
                         imported = list(bpy.context.selected_objects)
-                        
-                        def remove_suffix(name):
-                            return re.sub(r'\.\d+$', '', name)
-                        
-                        mesh_by_name = {}
-
-                        for obj_index, obj in enumerate(imported):
-                            obj_pool.append(obj)
-                            if obj.type == "MESH":
-                                obj_name = obj.name if "lambert" not in obj.name else f"{Obj_Name}:{obj_index}"
-                                new_name = remove_suffix(obj_name)
-                                mesh_by_name[new_name] = obj
-
-                        names = []
-                        for n in Mesh_Names:
-                            first = n.split(":")[0]
-                            if first == Obj_Name:
-                                names.append(n)
-
-                        for name in names:
-                            mesh_name = Mesh_Names_Dic.get(name)
-
-                            if mesh_name is None:
+                        for mesh in imported:
+                            if mesh.type != "MESH":
                                 continue
+
+                            obj_pool.append(mesh)
                             
-                            if "lambert" in name:
-                                obj = mesh_by_name.get(name)
-                            else:
-                                obj = mesh_by_name.get(mesh_name)
-                            
-                            if obj is None:
-                                print(f"Skipping {name}, mesh_name: {mesh_name}, Obj_Name: {Obj_Name}. mesh_by_name:\n{mesh_by_name}")
-                                continue
-                            
-                            material_name = f"{Obj_Name}:{mesh_name}"
+                            material_name = f"{Obj_Name}:{mesh.name}"
 
                             if material_name in bpy.data.materials:
-                                obj.data.materials.append(bpy.data.materials[material_name])
+                                mesh.data.materials.append(bpy.data.materials[material_name])
                             else:
-                                mesh_material = obj_material.get(mesh_name)
+                                mesh_material = obj_material.get(re.sub(r'\.\d+$', '', mesh.name))
                                 if mesh_material:
                                     vector_params = mesh_material[0]
                                     texture_params = mesh_material[1]
@@ -547,14 +525,22 @@ class ImportFolderOperator(Operator):
                                         param_type = param[1]
                                         param_value = param[2]
 
-                                        if ("Tint_Color" in param_name or "Tint_Colour" in param_name) and param_type == "ShaderParameterType_Color":
+                                        possible_tint_names = [
+                                            "Tint_Color",
+                                            "Tint_Colour",
+                                            "TintColor",
+                                            "TintColour"
+                                        ]
+
+                                        if any(tint_name in param_name for tint_name in possible_tint_names) and param_type == "ShaderParameterType_Color":
                                             use_vector_params = True
 
                                             rgb = param_value.split(",")
 
-                                            tint_r *= float(rgb[0])
-                                            tint_g *= float(rgb[1])
-                                            tint_b *= float(rgb[2])
+                                            tint_r = float(rgb[0])
+                                            tint_g = float(rgb[1])
+                                            tint_b = float(rgb[2])
+                                            break
 
                                     bsdf = material.node_tree.nodes["Principled BSDF"]
                                     bsdf.location = (700, 200)
@@ -640,7 +626,9 @@ class ImportFolderOperator(Operator):
                                         material.node_tree.links.new(normal_texture_node.outputs["Color"], normal_map_node.inputs["Color"])
                                         material.node_tree.links.new(normal_map_node.outputs["Normal"], bsdf.inputs["Normal"])
                                     
-                                    obj.data.materials.append(material)
+                                    mesh.data.materials.append(material)
+                                else:
+                                    print(f"Failed to get material from section '{mesh.name}': {obj_material}")
 
                         parent_empty = bpy.data.objects.new(Obj_Name,None)
                         context.collection.objects.link(parent_empty)

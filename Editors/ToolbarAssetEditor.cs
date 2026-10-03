@@ -343,6 +343,7 @@ namespace LevelEditorPlugin.Editors
             "Resources/Textures/Sprites/Location.dds",
             "Resources/Textures/Sprites/PointLight.dds",
             "Resources/Textures/Sprites/RectLight.dds",
+            "Resources/Textures/Sprites/Spawn.dds",
             "Resources/Textures/Sprites/SpotLight.dds",
             "Resources/Textures/DefaultLayer.dds",
             "Resources/Textures/DefaultLightProbe.dds",
