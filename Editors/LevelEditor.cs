@@ -255,7 +255,9 @@ namespace LevelEditorPlugin.Editors
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
                 new DividerToolbarItem(),
                 new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => new LevelExporter(RootLayer) )),
+#if !GW1
                 new RegularToolbarItem("", "Import a level from exported XML", "LevelEditorPlugin/Images/Import.png", new RelayCommand((o) => new LevelImporter(ref rootLayer, this, editingWorld) )),
+#endif
                 new DividerToolbarItem(),
                 new RegularToolbarItem("Add Object", "Add a new object to this level", "LevelEditorPlugin/Images/Add.png", new RelayCommand((o) => AddEntityFromButton() )),
                 new RegularToolbarItem("", "Duplicate the selected object", "LevelEditorPlugin/Images/Copy.png", new RelayCommand((o) => DuplicateEntity() )),

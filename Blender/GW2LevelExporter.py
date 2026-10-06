@@ -32,7 +32,17 @@ class ExportFolderOperator(Operator):
 
         objects = []
         exported_meshes = {}
-        written_meshes = set()
+        mesh_files = {}
+        used_names = set()
+
+        def unique_file_name(name):
+            new_name = name
+            count = 1
+            while new_name.lower() in used_names:
+                new_name = f"{name}_{count}"
+                count += 1
+            used_names.add(new_name.lower())
+            return new_name
 
         collision_collection_name = "Collision"
         collision_collection = bpy.data.collections[collision_collection_name] if collision_collection_name in bpy.data.collections else None
@@ -58,15 +68,22 @@ class ExportFolderOperator(Operator):
                     continue
 
                 mesh_name = fix_filename(obj.data.name)
-
-                exported_meshes[obj.name] = mesh_name
                 objects.append(obj)
 
                 mesh_key = f"{remove_suffix(mesh_name)}:{len(obj.data.vertices)}"
-                if mesh_key in written_meshes:
+                if mesh_key in mesh_files:
+                    exported_meshes[obj.name] = mesh_files[mesh_key]
                     continue
 
-                written_meshes.add(mesh_key)
+                new_name = mesh_name
+                count = 1
+                while new_name.lower() in used_names:
+                    new_name = f"{mesh_name}_{count}"
+                    count += 1
+                used_names.add(new_name.lower())
+                
+                mesh_files[mesh_key] = new_name
+                exported_meshes[obj.name] = new_name
 
                 exported_obj = obj.copy()
                 exported_obj.data = obj.data.copy()

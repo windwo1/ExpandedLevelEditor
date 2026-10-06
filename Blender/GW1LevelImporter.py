@@ -154,7 +154,7 @@ class ImportFolderOperator(Operator):
             decimate.ratio = terrain_decimation
             bpy.ops.object.modifier_apply(modifier=decimate.name)
 
-        terrain.name = "Terrain"
+            terrain.name = "Terrain"
 
         bpy.data.orphans_purge(do_recursive=True)
         gc.collect()

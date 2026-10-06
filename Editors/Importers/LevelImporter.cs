@@ -29,6 +29,7 @@ using MeshMaterial = FrostySdk.Ebx.MeshMaterial;
 using MeshSet = LevelEditorPlugin.Resources.MeshSet;
 using TextureType = FrostySdk.Resources.TextureType;
 
+#if !GW1
 namespace LevelEditorPlugin.Editors.Importers
 {
     public class LevelImporter
@@ -192,10 +193,14 @@ namespace LevelEditorPlugin.Editors.Importers
 
             Matrix offset = Matrix.Translation(SharpDXUtils.FromVec3(importSettings.ObjectOffset));
 
-            var layer = editor.AddedLayer;
-            var sceneLayer = editor.AddedSceneLayer;
-
             SceneLayer root = null;
+
+            string layerName = "layer0_leveleditor";
+            CreateLayer(layerName, out var part, out var partEntity);
+
+            var layer = part;
+            var sceneLayer = new SceneLayer(partEntity, layerName);
+            rootLayer.AddLayer(sceneLayer);
 
             if (importSettings.OverwriteLevel)
             {
@@ -214,13 +219,6 @@ namespace LevelEditorPlugin.Editors.Importers
                     (subWorldRef.Internal as SubWorldReferenceObjectData).Blueprint = new PointerRef();
                     (subWorldRef.Internal as SubWorldReferenceObjectData).BundleName = "";
                 }
-
-                string layerName = "layer0_leveleditor";
-                CreateLayer(layerName, out var part, out var partEntity);
-
-                layer = part;
-                sceneLayer = new SceneLayer(partEntity, layerName);
-                rootLayer.AddLayer(sceneLayer);
             }
 
             string materialsXml = Path.Combine(levelPath, "Materials.xml");
@@ -287,7 +285,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     max = new Resources.Vec3() { x = max.X, y = max.Z, z = -min.Y },
                 };
                 obj.SharpDXBoundingBox = new BoundingBox(
-                    new Vector3(obj.BoundingBox.min.x, obj.BoundingBox.min.y, obj.BoundingBox.min.z), 
+                    new Vector3(obj.BoundingBox.min.x, obj.BoundingBox.min.y, obj.BoundingBox.min.z),
                     new Vector3(obj.BoundingBox.max.x, obj.BoundingBox.max.y, obj.BoundingBox.max.z));
 
                 var transformNode = objNode.SelectSingleNode("Transform");
@@ -356,7 +354,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 {
                     obj.Created = true;
 
-                    var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(meshSample.GetType().Name), meshSample, obj);
+                    var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(meshSample.GetType().Name), obj);
                     var blueprint = CreateAsset(blueprintAssetPath, TypeLibrary.GetType("ObjectBlueprint"));
 
                     var blueprintAsset = App.AssetManager.GetEbx(blueprint);
@@ -509,7 +507,7 @@ namespace LevelEditorPlugin.Editors.Importers
                             material.TextureParameters = texParams;
                         }
 
-                        BundleManager.Instance.Manage(editor.AddedLayer.EnumerateBundles().ToList(), blueprint, material,
+                        BundleManager.Instance.Manage(layer.EnumerateBundles().ToList(), blueprint, material,
                             clear: false);
 
                         count++;
@@ -542,7 +540,10 @@ namespace LevelEditorPlugin.Editors.Importers
                 count = 0;
                 foreach (var obj in objects)
                 {
-                    task.Update("Creating collision", progress: ((double)count / objects.Count) * 100.0);
+                    if (obj.Name.StartsWith("NoCollision", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    task.Update("Creating collision (auto-generated)", progress: ((double)count / objects.Count) * 100.0);
 
                     var transform = obj.Transform * offset;
                     var collisionEntity = AddCollision(CollisionType.Cube, obj.SharpDXBoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
@@ -550,20 +551,20 @@ namespace LevelEditorPlugin.Editors.Importers
                     count++;
                 }
             }
-            else
+
+            count = 0;
+            foreach (var collision in collisions)
             {
-                count = 0;
-                foreach (var collision in collisions)
-                {
-                    task.Update("Creating collision", progress: ((double)count / collisions.Count) * 100.0);
+                task.Update("Creating collision (manual)", progress: ((double)count / collisions.Count) * 100.0);
 
-                    var transform = collision.Transform * offset;
-                    var collisionEntity = AddCollision(collision.Type, collision.BoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
-                    collisionEntities.Add(collisionEntity);
+                var transform = collision.Transform * offset;
+                var collisionEntity = AddCollision(collision.Type, collision.BoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
+                collisionEntities.Add(collisionEntity);
 
-                    count++;
-                }
+                count++;
             }
+
+            App.AssetManager.ModifyEbx(collisionLayer.Name, collisionLayerAsset);
 
             MeshVariationDb.LoadModifiedVariations();
             meshEntities.AddRange(entities);
@@ -622,7 +623,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 localHalfExtents.Y * Math.Abs(scale.Y),
                 localHalfExtents.Z * Math.Abs(scale.Z));
 
-            var rigidBodyObj = CreateObject(asset, typeof(RigidBodyData)) as RigidBodyData;
+            var rigidBodyObj = Utils.CreateEntityData(typeof(RigidBodyData), asset) as RigidBodyData;
             ApplyRigidBodyDefaults(rigidBodyObj);
             asset.AddObject(rigidBodyObj);
 
@@ -635,6 +636,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     sphereObj.Transform = Entities.Entity.MakeLinearTransform(transform);
                     sphereObj.Radius = Math.Max(halfExtents.X, Math.Max(halfExtents.Y, halfExtents.Z));
                     sphereObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
+
                     sphereObj.Enabled = true;
                     asset.AddObject(sphereObj);
 
@@ -646,6 +648,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     obbObj.Transform = Entities.Entity.MakeLinearTransform(transform);
                     obbObj.HalfExtents = new Vec3() { x = halfExtents.X, y = halfExtents.Y, z = halfExtents.Z };
                     obbObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
+
                     obbObj.Enabled = true;
                     asset.AddObject(obbObj);
 
@@ -661,9 +664,9 @@ namespace LevelEditorPlugin.Editors.Importers
 
         private void ApplyObjectBlueprintDefaults(EbxAsset blueprintAsset, ObjectBlueprint objBlueprint, EbxAssetEntry mesh)
         {
-            var staticModelEntity = CreateObject(blueprintAsset, typeof(StaticModelEntityData)) as StaticModelEntityData;
-            var partComponentEntity = CreateObject(blueprintAsset, typeof(PartComponentData)) as PartComponentData;
-            var healthState = CreateObject(blueprintAsset, typeof(HealthStateData)) as HealthStateData;
+            var staticModelEntity = Utils.CreateEntityData(typeof(StaticModelEntityData), blueprintAsset) as StaticModelEntityData;
+            var partComponentEntity = Utils.CreateEntityData(typeof(PartComponentData), blueprintAsset) as PartComponentData;
+            var healthState = Utils.CreateEntityData(typeof(HealthStateData), blueprintAsset) as HealthStateData;
 
             healthState.CopyDamageToBanger = true;
             healthState.PhysicsEnabled = true;
@@ -774,7 +777,7 @@ namespace LevelEditorPlugin.Editors.Importers
             outPartEntity = partEntity;
         }
 
-        private EbxAssetEntry CreateMesh(string name, Type type, MeshAsset sample, ObjectInfo obj)
+        private EbxAssetEntry CreateMesh(string name, Type type, ObjectInfo obj)
         {
             name = name.ToLower();
 
@@ -782,7 +785,7 @@ namespace LevelEditorPlugin.Editors.Importers
             EbxAsset asset = App.AssetManager.GetEbx(entry);
             MeshAsset meshProperties = asset.RootObject as MeshAsset;
 
-            var resEntry = App.AssetManager.GetResEntry(sample.MeshSetResource);
+            var resEntry = App.AssetManager.GetResEntry(meshSample.MeshSetResource);
 
             ResAssetEntry resAsset = DuplicateRes(resEntry, name, ResourceType.MeshSet);
             MeshSet meshSet = App.AssetManager.GetResAs<MeshSet>(resAsset);
@@ -810,7 +813,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 ? new Vec4 { x = 1, y = 1, z = 1, w = 1 }
                 : new Vec4 { x = mat.Tint.X, y = mat.Tint.Y, z = mat.Tint.Z, w = 1.0f };
 
-            var meshMaterial = CreateObject(asset, typeof(MeshMaterial)) as MeshMaterial;
+            var meshMaterial = Utils.CreateEntityData(typeof(MeshMaterial), asset) as MeshMaterial;
             meshMaterial.Shader = new SurfaceShaderInstanceDataStruct
             {
                 Shader = new PointerRef(new EbxImportReference
@@ -1235,22 +1238,6 @@ namespace LevelEditorPlugin.Editors.Importers
         }
         #endregion
 
-        private object CreateObject(EbxAsset asset, Type type)
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                object data = Utils.CreateEntityData(type, asset);
-                asset.AddObject(data);
-
-                if (asset.Objects.Contains(data))
-                    return data;
-            }
-
-            var entry = App.AssetManager.GetEbxEntry(asset.FileGuid);
-            App.Logger.LogError($"Couldn't create object '{type.Name}' in asset '{entry.Name}'");
-            return null;
-        }
-
         // since we currently cant modify the amount of sections in a mesh or create a brand new mesh,
         // find a mesh with a single section for all mesh types to duplicate later
         private void GetSamples()
@@ -1337,3 +1324,4 @@ namespace LevelEditorPlugin.Editors.Importers
         }
     }
 }
+#endif
