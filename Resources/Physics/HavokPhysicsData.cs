@@ -1,19 +1,14 @@
-﻿using FrostySdk.IO;
+﻿using Frosty.Core;
+using FrostySdk;
+using FrostySdk.IO;
 using FrostySdk.Managers;
 using FrostySdk.Resources;
+using LevelEditorPlugin.Resources.Hkx;
+using SharpDX;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using SharpDX;
 using System.IO;
-using FrostySdk;
-using Frosty.Core.Mod;
-using Frosty.Core.IO;
-using LevelEditorPlugin.Resources.Hkx;
-using Frosty.Core;
-using Frosty.Controls;
+using System.Linq;
 
 namespace LevelEditorPlugin.Resources
 {
@@ -213,6 +208,15 @@ namespace LevelEditorPlugin.Resources
         public class hknpCapsuleShape : hknpShape
         {
         }
+
+        public class PolytopeShape
+        {
+            public List<Vector4> Vertices { get; set; } = new List<Vector4>();
+            public List<Vector4> Planes { get; set; } = new List<Vector4>();
+            public List<byte[]> Faces { get; set; } = new List<byte[]>();
+            public List<byte> Indices { get; set; } = new List<byte>();
+        }
+
         public class hknpConvexPolytopeShape : hknpShape
         {
             public List<Vector4> Vertices = new List<Vector4>();
@@ -220,12 +224,24 @@ namespace LevelEditorPlugin.Resources
             public List<byte[]> Faces = new List<byte[]>();
             public List<byte> Indices = new List<byte>();
 
+            public long VerticesHeaderOffset;
+            public long PlanesHeaderOffset;
+            public long FacesHeaderOffset;
+            public long IndicesHeaderOffset;
+
+            public long VerticesDataOffset;
+            public long PlanesDataOffset;
+            public long FacesDataOffset;
+            public long IndicesDataOffset;
+
             public override void Serialize(NativeReader reader, HkxHeader header)
             {
                 base.Serialize(reader, header);
                 reader.Position += 0x08;
 
+                VerticesHeaderOffset = reader.Position;
                 int numVertices = header.BeginRelArrayRead(reader);
+                VerticesDataOffset = reader.Position;
                 for (int i = 0; i < numVertices; i++)
                 {
                     Vertices.Add(new Vector4(
@@ -239,7 +255,9 @@ namespace LevelEditorPlugin.Resources
 
                 reader.Position += 0x0c;
 
+                PlanesHeaderOffset = reader.Position;
                 int numPlanes = header.BeginRelArrayRead(reader);
+                PlanesDataOffset = reader.Position;
                 for (int i = 0; i < numPlanes; i++)
                 {
                     Planes.Add(new Vector4(
@@ -251,7 +269,9 @@ namespace LevelEditorPlugin.Resources
                 }
                 header.EndRelArrayRead(reader);
 
+                FacesHeaderOffset = reader.Position;
                 int numFaces = header.BeginRelArrayRead(reader);
+                FacesDataOffset = reader.Position;
                 for (int i = 0; i < numFaces; i++)
                 {
                     Faces.Add(new byte[]
@@ -264,12 +284,95 @@ namespace LevelEditorPlugin.Resources
                 }
                 header.EndRelArrayRead(reader);
 
+                IndicesHeaderOffset = reader.Position;
                 int numIndices = header.BeginRelArrayRead(reader);
+                IndicesDataOffset = reader.Position;
                 for (int i = 0; i < numIndices; i++)
                 {
                     Indices.Add(reader.ReadByte());
                 }
                 header.EndRelArrayRead(reader);
+            }
+
+            public PolytopeShape GetPolytopeShape()
+            {
+                PolytopeShape shape = new PolytopeShape();
+                shape.Vertices.AddRange(Vertices);
+                shape.Planes.AddRange(Planes);
+                foreach (byte[] face in Faces)
+                {
+                    shape.Faces.Add((byte[])face.Clone());
+                }
+                shape.Indices.AddRange(Indices);
+                return shape;
+            }
+
+            public void Write(NativeWriter writer, PolytopeShape shape)
+            {
+                writer.Position = VerticesHeaderOffset;
+                writer.Write((ushort)shape.Vertices.Count);
+                writer.Position = VerticesDataOffset;
+                for (int i = 0; i < shape.Vertices.Count; i++)
+                {
+                    writer.Write(shape.Vertices[i].X);
+                    writer.Write(shape.Vertices[i].Y);
+                    writer.Write(shape.Vertices[i].Z);
+                    writer.Write(shape.Vertices[i].W);
+                }
+
+                writer.Position = PlanesHeaderOffset;
+                writer.Write((ushort)shape.Planes.Count);
+                writer.Position = PlanesDataOffset;
+                for (int i = 0; i < shape.Planes.Count; i++)
+                {
+                    writer.Write(shape.Planes[i].X);
+                    writer.Write(shape.Planes[i].Y);
+                    writer.Write(shape.Planes[i].Z);
+                    writer.Write(shape.Planes[i].W);
+                }
+
+                writer.Position = FacesHeaderOffset;
+                writer.Write((ushort)shape.Faces.Count);
+                writer.Position = FacesDataOffset;
+                for (int i = 0; i < shape.Faces.Count; i++)
+                {
+                    writer.Write(shape.Faces[i]);
+                }
+
+                writer.Position = IndicesHeaderOffset;
+                writer.Write((ushort)shape.Indices.Count);
+                writer.Position = IndicesDataOffset;
+                for (int i = 0; i < shape.Indices.Count; i++)
+                {
+                    writer.Write(shape.Indices[i]);
+                }
+            }
+
+            public bool IsShapeValid(PolytopeShape shape)
+            {
+                if (shape == null || shape.Vertices == null || shape.Planes == null || shape.Faces == null || shape.Indices == null)
+                    return false;
+
+                foreach (byte[] face in shape.Faces)
+                {
+                    if (face == null || face.Length != 4)
+                        return false;
+                }
+
+                return true;
+            }
+
+            public bool ShapeFits(PolytopeShape shape)
+            {
+                if (shape.Vertices.Count > Vertices.Count ||
+                    shape.Planes.Count > Planes.Count ||
+                    shape.Faces.Count > Faces.Count ||
+                    shape.Indices.Count > Indices.Count)
+                {
+                    return false;
+                }
+
+                return true;
             }
         }
         public class hknpSphereShape : hknpShape
@@ -629,8 +732,11 @@ namespace LevelEditorPlugin.Resources
         public int LocalFixupSize;
         public int GlobalFixupSize;
         public int AbsoluteDataStart;
+        public int SectionIntsPos;
 
-        int virtualFixupsOffset;
+        public int VirtualFixupsOffset;
+        public int exportsOffset;
+        public int importsOffset;
         public int endOffset;
 
         Dictionary<ulong, HkxClassDescriptor> Classes = new Dictionary<ulong, HkxClassDescriptor>();
@@ -644,8 +750,6 @@ namespace LevelEditorPlugin.Resources
             int ClassSectionOffset = 0;
             int ClassSectionSize = 0;
             int TypesSectionOffset = 0;
-            int exportsOffset = 0;
-            int importsOffset = 0;
             int CurrentSection = 0;
 
             while (CurrentSection < Header.NumSections)
@@ -667,10 +771,11 @@ namespace LevelEditorPlugin.Resources
                 }
                 else if (BlockType.Contains("__data__"))
                 {
+                    SectionIntsPos = (int)reader.Position;
                     AbsoluteDataStart = reader.ReadInt();
                     LocalFixupSize = reader.ReadInt();
                     GlobalFixupSize = reader.ReadInt();
-                    virtualFixupsOffset = reader.ReadInt();
+                    VirtualFixupsOffset = reader.ReadInt();
                     exportsOffset = reader.ReadInt();
                     importsOffset = reader.ReadInt();
                     endOffset = reader.ReadInt();
@@ -688,7 +793,7 @@ namespace LevelEditorPlugin.Resources
                 Classes.Add(ClassOffset + 5, Class);
             }
 
-            reader.Position = Header.StartOffset + AbsoluteDataStart + virtualFixupsOffset;
+            reader.Position = Header.StartOffset + AbsoluteDataStart + VirtualFixupsOffset;
 
             int TotalSize = (int)Header.StartOffset + AbsoluteDataStart + endOffset;
 
@@ -737,93 +842,6 @@ namespace LevelEditorPlugin.Resources
 
     public class HavokPhysicsData : Resource
     {
-        public class HavokPhysicsDataModifiedResource : BaseModifiedResource
-        {
-
-            private Dictionary<int, Matrix> modifiedTransforms = new Dictionary<int, Matrix>();
-
-            public HavokPhysicsDataModifiedResource()
-                : base(null)
-            {
-            }
-
-            public HavokPhysicsDataModifiedResource(ResAssetEntry inEntry)
-                : base(inEntry)
-            {
-                Entry = inEntry;
-            }
-
-            public bool GetTransform(int index, out Matrix outTransform)
-            {
-                outTransform = Matrix.Identity;
-                if (!modifiedTransforms.ContainsKey(index))
-                    return false;
-
-                outTransform = modifiedTransforms[index];
-                return true;
-            }
-
-            public void SetTransform(int index, Matrix transform)
-            {
-                if (!modifiedTransforms.ContainsKey(index))
-                    modifiedTransforms.Add(index, Matrix.Identity);
-                modifiedTransforms[index] = transform;
-            }
-
-            public void ClearTransform(int index)
-            {
-                if (!modifiedTransforms.ContainsKey(index))
-                    return;
-                modifiedTransforms.Remove(index);
-            }
-
-            public override void SaveInternal(NativeWriter writer)
-            {
-                writer.Write(modifiedTransforms.Count);
-                foreach (KeyValuePair<int, Matrix> kvp in modifiedTransforms)
-                {
-                    writer.Write(kvp.Key);
-
-                    writer.Write(kvp.Value.M11);
-                    writer.Write(kvp.Value.M12);
-                    writer.Write(kvp.Value.M13);
-                    writer.Write(kvp.Value.M14);
-
-                    writer.Write(kvp.Value.M21);
-                    writer.Write(kvp.Value.M22);
-                    writer.Write(kvp.Value.M23);
-                    writer.Write(kvp.Value.M24);
-
-                    writer.Write(kvp.Value.M31);
-                    writer.Write(kvp.Value.M32);
-                    writer.Write(kvp.Value.M33);
-                    writer.Write(kvp.Value.M34);
-
-                    writer.Write(kvp.Value.M41);
-                    writer.Write(kvp.Value.M42);
-                    writer.Write(kvp.Value.M43);
-                    writer.Write(kvp.Value.M44);
-                }
-            }
-
-            public override void ReadInternal(NativeReader reader)
-            {
-                int count = reader.ReadInt();
-                for (int i = 0; i < count; i++)
-                {
-                    int key = reader.ReadInt();
-                    Matrix value = new Matrix(
-                        reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                        reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                        reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                        reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()
-                        );
-
-                    modifiedTransforms.Add(key, value);
-                }
-            }
-        }
-
         Hkx.hknpStaticCompoundShape RootShape => (inst64.Objects[0] as Hkx.HavokPhysicsContainer).Objects[0] as Hkx.hknpStaticCompoundShape;
 
         private int partCount;
@@ -835,26 +853,33 @@ namespace LevelEditorPlugin.Resources
         private byte materialCountUsed;
         private byte highestMaterialIndex;
 
+        // from resMeta
+        private ushort packFilesOffset;
+        private uint firstPackFileSize;
+        private uint secondPackFileSize;
+        private uint fixupTablesSize;
+
+        private Dictionary<int, Matrix> modifiedTransforms = new Dictionary<int, Matrix>();
+
         private HkxInstance inst32;
         private HkxInstance inst64;
 
         private byte[] resData;
         private ResAssetEntry resEntry;
 
-        private HavokPhysicsDataModifiedResource modifiedData;
+        public Hkx.PolytopeShape Collision { get; set; }
 
         public override void Read(NativeReader reader, AssetManager am, ResAssetEntry entry, ModifiedResource inModifiedData)
         {
             base.Read(reader, am, entry, inModifiedData);
 
-            modifiedData = (inModifiedData != null)
-                ? inModifiedData as HavokPhysicsDataModifiedResource
-                : new HavokPhysicsDataModifiedResource(entry);
-
-            modifiedData.Entry = entry;
-
             resData = reader.ReadToEnd();
             resEntry = entry;
+
+            packFilesOffset = BitConverter.ToUInt16(resMeta, 0x00);
+            firstPackFileSize = BitConverter.ToUInt32(resMeta, 0x04);
+            secondPackFileSize = BitConverter.ToUInt32(resMeta, 0x08);
+            fixupTablesSize = BitConverter.ToUInt32(resMeta, 0x0C);
 
             reader.Position = 0;
 
@@ -961,8 +986,7 @@ namespace LevelEditorPlugin.Resources
 
         public void UpdateData(int index, Matrix newTransform)
         {
-            modifiedData.SetTransform(index, newTransform);
-            modifiedData.UpdateData(this);
+            SetTransform(index, newTransform);
         }
 
         public void UndoData(int index, Matrix prevTransform)
@@ -970,12 +994,37 @@ namespace LevelEditorPlugin.Resources
             // @todo: Figure out when to clear unmodified transforms, as this will continue to store transforms of meshes that
             //        were moved and then reverted
 
-            modifiedData.SetTransform(index, prevTransform);
-            modifiedData.UndoData(this);
+            SetTransform(index, prevTransform);
+        }
+
+        public bool GetTransform(int index, out Matrix outTransform)
+        {
+            outTransform = Matrix.Identity;
+            if (!modifiedTransforms.ContainsKey(index))
+                return false;
+
+            outTransform = modifiedTransforms[index];
+            return true;
+        }
+
+        public void SetTransform(int index, Matrix transform)
+        {
+            if (!modifiedTransforms.ContainsKey(index))
+                modifiedTransforms.Add(index, Matrix.Identity);
+            modifiedTransforms[index] = transform;
+        }
+
+        public Hkx.PolytopeShape GetOriginalCollison()
+        {
+            var first = inst64.Objects.OfType<Hkx.hknpConvexPolytopeShape>().FirstOrDefault();
+            return first?.GetPolytopeShape();
         }
 
         public override byte[] SaveBytes()
         {
+            var shapes = inst64.Objects.OfType<hknpConvexPolytopeShape>().ToList();
+            bool collisionFits = true;
+
             MemoryStream ms = new MemoryStream();
             using (NativeWriter writer = new NativeWriter(ms))
             {
@@ -1040,7 +1089,7 @@ namespace LevelEditorPlugin.Resources
                     {
                         for (int i = 0; i < shape.Instances.Count; i++)
                         {
-                            if (!modifiedData.GetTransform(i, out var transform))
+                            if (!GetTransform(i, out var transform))
                                 continue;
 
                             Vector3 scale;
@@ -1076,6 +1125,9 @@ namespace LevelEditorPlugin.Resources
                         // performance implications, but it works for now.
 
                         hknpStaticCompoundShape staticCompoundShape = obj as Hkx.hknpStaticCompoundShape;
+                        if (staticCompoundShape == null)
+                            continue;
+
                         if (staticCompoundShape.ShapeData != null)
                         {
                             writer.Position = staticCompoundShape.ShapeData.ArrayOffset;
@@ -1090,7 +1142,7 @@ namespace LevelEditorPlugin.Resources
                         foreach (hknpStaticCompoundShape.hknpInstance instance in (obj as Hkx.hknpStaticCompoundShape).Instances)
                         {
                             Matrix transform;
-                            if (modifiedData.GetTransform(index, out transform))
+                            if (GetTransform(index, out transform))
                             {
                                 hknpShape shape = instance.shape as Hkx.hknpShape;
                                 if (shape != null && (shape.unknown & 0x10) != 0)
@@ -1136,10 +1188,136 @@ namespace LevelEditorPlugin.Resources
                         }
                     }
                 }
+
+                if (Collision == null || shapes.Count == 0 || !shapes[0].IsShapeValid(Collision))
+                {
+                    App.Logger.LogError("New collision is invalid");
+                }
+                else if (!shapes[0].ShapeFits(Collision))
+                {
+                    collisionFits = false;
+                }
+                else
+                {
+                    shapes[0].Write(writer, Collision);
+                    for (int i = 1; i < shapes.Count; i++)
+                    {
+                        shapes[i].Write(writer, new PolytopeShape());
+                    }
+                }
             }
 
             byte[] outBuffer = ms.ToArray();
             ms.Dispose();
+
+            if (!collisionFits)
+            {
+                int oldSize = inst64.AbsoluteDataStart + inst64.endOffset;
+
+                byte[] newBytes = null;
+
+                long dataStart = inst64.Header.StartOffset + inst64.AbsoluteDataStart;
+                long insertAt = dataStart + inst64.VirtualFixupsOffset;
+
+                long[] headerOffsets =
+                {
+                    shapes[0].VerticesHeaderOffset,
+                    shapes[0].PlanesHeaderOffset,
+                    shapes[0].FacesHeaderOffset,
+                    shapes[0].IndicesHeaderOffset
+                };
+                int[] counts =
+                {
+                    Collision.Vertices.Count,
+                    Collision.Planes.Count,
+                    Collision.Faces.Count,
+                    Collision.Indices.Count
+                };
+                long[] dataOffsets = new long[4];
+
+                using (var writer = new NativeWriter(new MemoryStream()))
+                {
+                    writer.Write(outBuffer, 0, (int)insertAt);
+
+                    writer.WritePadding(16);
+                    dataOffsets[0] = writer.Position;
+                    foreach (var vert in Collision.Vertices)
+                    {
+                        writer.Write(vert.X);
+                        writer.Write(vert.Y);
+                        writer.Write(vert.Z);
+                        writer.Write(vert.W);
+                    }
+                    writer.WritePadding(16);
+
+                    dataOffsets[1] = writer.Position;
+                    foreach (var plane in Collision.Planes)
+                    {
+                        writer.Write(plane.X);
+                        writer.Write(plane.Y);
+                        writer.Write(plane.Z);
+                        writer.Write(plane.W);
+                    }
+                    writer.WritePadding(16);
+
+                    dataOffsets[2] = writer.Position;
+                    foreach (byte[] face in Collision.Faces)
+                    {
+                        writer.Write(face);
+                    }
+                    writer.WritePadding(16);
+
+                    dataOffsets[3] = writer.Position;
+                    foreach (byte i in Collision.Indices)
+                    {
+                        writer.Write(i);
+                    }
+                    writer.WritePadding(16);
+
+                    int delta = (int)(writer.Position - insertAt);
+
+                    ushort[] offsets = new ushort[4];
+                    for (int i = 0; i < 4; i++)
+                    {
+                        offsets[i] = (ushort)(dataOffsets[i] - headerOffsets[i]);
+                    }
+
+                    writer.Write(outBuffer, (int)insertAt, outBuffer.Length - (int)insertAt);
+
+                    writer.Position = inst64.SectionIntsPos + 12;
+                    writer.Write(inst64.VirtualFixupsOffset + delta);
+                    writer.Write(inst64.exportsOffset + delta);
+                    writer.Write(inst64.importsOffset + delta);
+                    writer.Write(inst64.endOffset + delta);
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        writer.Position = headerOffsets[i];
+                        writer.Write((ushort)counts[i]);
+                        writer.Write(offsets[i]);
+                    }
+
+                    newBytes = writer.ToByteArray();
+                }
+
+                if (newBytes != null)
+                {
+                    outBuffer = newBytes;
+
+                    var stream = new MemoryStream();
+                    using (var writer = new NativeWriter(new MemoryStream()))
+                    {
+                        writer.Write(resMeta);
+
+                        writer.Position = 8;
+                        writer.Write(oldSize + (outBuffer.Length - resData.Length));
+                    }
+
+                    resMeta = stream.ToArray();
+                }
+            }
+
+            resEntry.ResMeta = resMeta;
 
             return outBuffer;
         }
@@ -1147,7 +1325,7 @@ namespace LevelEditorPlugin.Resources
         public Matrix GetTransform(int index)
         {
             Matrix outTransform;
-            if (modifiedData.GetTransform(index, out outTransform))
+            if (GetTransform(index, out outTransform))
                 return outTransform;
 
             Matrix preScale = Matrix.Identity;
@@ -1211,82 +1389,6 @@ namespace LevelEditorPlugin.Resources
                 // for some reason instance.shape when loading Zomburbia (GW2) is null, so it just uses a placeholder name
                 return instance.shape == null ? placeholderName : instance.shape.GetType().Name;
             }
-        }
-
-        public override ModifiedResource SaveModifiedResource()
-        {
-            return modifiedData;
-        }
-    }
-
-    public class HavokPhysicsDataActionHandler : ICustomActionHandler
-    {
-        public HandlerUsage Usage => HandlerUsage.Modify;
-
-        private class HavokPhysicsDataResource : EditorModResource
-        {
-            public static uint Hash => (uint)Frosty.Hash.Fnv1.HashString(typeof(HavokPhysicsDataActionHandler).FullName);
-            public override ModResourceType Type => ModResourceType.Res;
-
-            private uint resType;
-            private ulong resRid;
-            private byte[] resMeta;
-
-            public HavokPhysicsDataResource(ResAssetEntry entry, FrostyModWriter.Manifest manifest)
-                : base(entry)
-            {
-                ModifiedResource md = entry.ModifiedEntry.DataObject as ModifiedResource;
-                byte[] data = md.Save();
-
-                name = entry.Name.ToLower();
-                sha1 = Utils.GenerateSha1(data);
-                resourceIndex = manifest.Add(sha1, data);
-                size = data.Length;
-                handlerHash = (int)Hash;
-
-                resType = entry.ResType;
-                resRid = entry.ResRid;
-                resMeta = (entry.ModifiedEntry.ResMeta != null) ? entry.ModifiedEntry.ResMeta : entry.ResMeta;
-            }
-
-            public override void Write(NativeWriter writer)
-            {
-                base.Write(writer);
-
-                writer.Write(resType);
-                writer.Write(resRid);
-                writer.Write(resMeta.Length);
-                writer.Write(resMeta);
-            }
-        }
-
-        public void SaveToMod(FrostyModWriter writer, AssetEntry entry)
-        {
-            writer.AddResource(new HavokPhysicsDataResource(entry as ResAssetEntry, writer.ResourceManifest));
-        }
-
-        public IEnumerable<string> GetResourceActions(string name, byte[] data)
-        {
-            return new List<string>();
-        }
-
-        public object Load(object existing, byte[] newData)
-        {
-            return ModifiedResource.Read(newData) as HavokPhysicsData.HavokPhysicsDataModifiedResource;
-        }
-
-        public void Modify(AssetEntry origEntry, AssetManager am, RuntimeResources runtimeResources, object data, out byte[] outData)
-        {
-            HavokPhysicsData.HavokPhysicsDataModifiedResource physicsData = data as HavokPhysicsData.HavokPhysicsDataModifiedResource;
-            HavokPhysicsData havokData = am.GetResAs<HavokPhysicsData>(am.GetResEntry((origEntry as ResAssetEntry).ResRid), physicsData);
-
-            byte[] uncompressedData = havokData.SaveBytes();
-
-            origEntry.OriginalSize = uncompressedData.Length;
-            outData = Utils.CompressFile(uncompressedData);
-
-            origEntry.Size = outData.Length;
-            origEntry.Sha1 = Utils.GenerateSha1(outData);
         }
     }
 }

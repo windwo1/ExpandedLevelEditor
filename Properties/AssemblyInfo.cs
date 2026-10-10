@@ -43,7 +43,7 @@ using LevelEditorPlugin;
 [assembly: RegisterAssetDefinition("LogicPrefabBlueprint", typeof(LogicPrefabAssetDefinition))]
 [assembly: RegisterAssetDefinition("SpatialPrefabBlueprint", typeof(SpatialPrefabAssetDefinition))]
 
-[assembly:RegisterCustomHandler(CustomHandlerType.Res, typeof(HavokPhysicsDataActionHandler), ResType = ResourceType.HavokPhysicsData)]
+//[assembly:RegisterCustomHandler(CustomHandlerType.Res, typeof(HavokPhysicsDataActionHandler), ResType = ResourceType.HavokPhysicsData)]
 
 // various shaders used by the level editor
 [assembly: RegisterUserShader("TerrainShader", "TerrainShader")]

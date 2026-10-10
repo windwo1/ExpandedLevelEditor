@@ -137,6 +137,7 @@ namespace LevelEditorPlugin.Entities
 
         private Resources.HavokPhysicsData physicsData;
         private List<Entity> entities = new List<Entity>();
+        private int modificationCount;
 
         public StaticModelGroupEntity(FrostySdk.Ebx.StaticModelGroupEntityData inData, Entity inParent)
             : base(inData, inParent)
@@ -226,6 +227,8 @@ namespace LevelEditorPlugin.Entities
             if (entity.Data.IsHavok)
             {
                 physicsData.UpdateData(entity.Data.Index, entity.GetLocalTransform());
+                App.AssetManager.ModifyRes(physicsData.ResourceId, physicsData);
+                modificationCount++;
             }
             else
             {
@@ -263,7 +266,16 @@ namespace LevelEditorPlugin.Entities
         {
             if (entity.Data.IsHavok)
             {
-                physicsData.UndoData(entity.Data.Index, entity.GetLocalTransform());
+                modificationCount--;
+                if (modificationCount > 0)
+                {
+                    physicsData.UndoData(entity.Data.Index, entity.GetLocalTransform());
+                    App.AssetManager.ModifyRes(physicsData.ResourceId, physicsData);
+                }
+                else
+                {
+                    App.AssetManager.GetResEntry(physicsData.ResourceId).ClearModifications();
+                }
             }
             else
             {
