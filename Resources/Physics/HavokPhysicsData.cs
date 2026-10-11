@@ -205,6 +205,11 @@ namespace LevelEditorPlugin.Resources
             }
         }
 
+        public class hknpCompositeShape : hknpShape
+        {
+
+        }
+
         public class hknpCapsuleShape : hknpShape
         {
         }
@@ -213,8 +218,15 @@ namespace LevelEditorPlugin.Resources
         {
             public List<Vector4> Vertices { get; set; } = new List<Vector4>();
             public List<Vector4> Planes { get; set; } = new List<Vector4>();
-            public List<byte[]> Faces { get; set; } = new List<byte[]>();
+            public List<PolytopeShapeFace> Faces { get; set; } = new List<PolytopeShapeFace>();
             public List<byte> Indices { get; set; } = new List<byte>();
+        }
+
+        public class PolytopeShapeFace
+        {
+            public byte MinHalfAngle { get; set; }
+            public byte NumIndices { get; set; }
+            public ushort FirstIndex { get; set; }
         }
 
         public class hknpConvexPolytopeShape : hknpShape
@@ -301,7 +313,12 @@ namespace LevelEditorPlugin.Resources
                 shape.Planes.AddRange(Planes);
                 foreach (byte[] face in Faces)
                 {
-                    shape.Faces.Add((byte[])face.Clone());
+                    shape.Faces.Add(new PolytopeShapeFace
+                    {
+                        MinHalfAngle = face[0],
+                        NumIndices = face[1],
+                        FirstIndex = BitConverter.ToUInt16(face, 2)
+                    });
                 }
                 shape.Indices.AddRange(Indices);
                 return shape;
@@ -336,7 +353,9 @@ namespace LevelEditorPlugin.Resources
                 writer.Position = FacesDataOffset;
                 for (int i = 0; i < shape.Faces.Count; i++)
                 {
-                    writer.Write(shape.Faces[i]);
+                    writer.Write(shape.Faces[i].MinHalfAngle);
+                    writer.Write(shape.Faces[i].NumIndices);
+                    writer.Write(shape.Faces[i].FirstIndex);
                 }
 
                 writer.Position = IndicesHeaderOffset;
@@ -353,9 +372,9 @@ namespace LevelEditorPlugin.Resources
                 if (shape == null || shape.Vertices == null || shape.Planes == null || shape.Faces == null || shape.Indices == null)
                     return false;
 
-                foreach (byte[] face in shape.Faces)
+                foreach (var face in shape.Faces)
                 {
-                    if (face == null || face.Length != 4)
+                    if (face == null)
                         return false;
                 }
 
@@ -1189,20 +1208,23 @@ namespace LevelEditorPlugin.Resources
                     }
                 }
 
-                if (Collision == null || shapes.Count == 0 || !shapes[0].IsShapeValid(Collision))
+                if (Collision != null && shapes.Count != 0)
                 {
-                    App.Logger.LogError("New collision is invalid");
-                }
-                else if (!shapes[0].ShapeFits(Collision))
-                {
-                    collisionFits = false;
-                }
-                else
-                {
-                    shapes[0].Write(writer, Collision);
-                    for (int i = 1; i < shapes.Count; i++)
+                    if (!shapes[0].IsShapeValid(Collision))
                     {
-                        shapes[i].Write(writer, new PolytopeShape());
+                        App.Logger.LogError("New collision is invalid");
+                    }
+                    else if (!shapes[0].ShapeFits(Collision))
+                    {
+                        collisionFits = false;
+                    }
+                    else
+                    {
+                        shapes[0].Write(writer, Collision);
+                        for (int i = 1; i < shapes.Count; i++)
+                        {
+                            shapes[i].Write(writer, new PolytopeShape());
+                        }
                     }
                 }
             }
@@ -1261,9 +1283,11 @@ namespace LevelEditorPlugin.Resources
                     writer.WritePadding(16);
 
                     dataOffsets[2] = writer.Position;
-                    foreach (byte[] face in Collision.Faces)
+                    foreach (var face in Collision.Faces)
                     {
-                        writer.Write(face);
+                        writer.Write(face.MinHalfAngle);
+                        writer.Write(face.NumIndices);
+                        writer.Write(face.FirstIndex);
                     }
                     writer.WritePadding(16);
 
@@ -1305,7 +1329,7 @@ namespace LevelEditorPlugin.Resources
                     outBuffer = newBytes;
 
                     var stream = new MemoryStream();
-                    using (var writer = new NativeWriter(new MemoryStream()))
+                    using (var writer = new NativeWriter(stream))
                     {
                         writer.Write(resMeta);
 

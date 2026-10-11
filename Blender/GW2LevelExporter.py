@@ -99,10 +99,24 @@ class ExportFolderOperator(Operator):
                 exported_obj.select_set(True)
                 context.view_layer.objects.active = exported_obj
 
-                path = os.path.join(self.directory, "Meshes", mesh_name + ".fbx")
+                fbx_path = os.path.join(self.directory, "Meshes", mesh_name + ".fbx")
+                obj_path = os.path.join(self.directory, "Meshes", mesh_name + "_Collision.obj")
 
-                if not os.path.exists(path):
-                    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, global_scale=0.01, use_triangles=True, use_tspace=True)
+                if not os.path.exists(fbx_path):
+                    bpy.ops.export_scene.fbx(
+                        filepath=fbx_path, 
+                        use_selection=True, 
+                        global_scale=0.01, 
+                        use_triangles=True, 
+                        use_tspace=True)
+
+                if not os.path.exists(obj_path):
+                    bpy.ops.wm.obj_export(
+                        filepath=obj_path, 
+                        export_selected_objects=True, 
+                        export_materials=False, 
+                        export_normals=False,
+                        export_uv=False)
 
                 bpy.data.objects.remove(exported_obj, do_unlink=True)
         finally:

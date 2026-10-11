@@ -266,10 +266,10 @@ namespace LevelEditorPlugin.Entities
         {
             if (entity.Data.IsHavok)
             {
+                physicsData.UndoData(entity.Data.Index, entity.GetLocalTransform());
                 modificationCount--;
                 if (modificationCount > 0)
                 {
-                    physicsData.UndoData(entity.Data.Index, entity.GetLocalTransform());
                     App.AssetManager.ModifyRes(physicsData.ResourceId, physicsData);
                 }
                 else

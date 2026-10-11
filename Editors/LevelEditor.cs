@@ -129,6 +129,16 @@ namespace LevelEditorPlugin.Editors
 
             return (eye + forward * distance) + offset;
         }
+
+        public static Vector3 ToVector3(this Vector4 vec)
+        {
+            return new Vector3(vec.X, vec.Y, vec.Z);
+        }
+
+        public static Vector4 ToVector4(this Vector3 vec, float w)
+        {
+            return new Vector4(vec.X, vec.Y, vec.Z, w);
+        }
     }
 
     public class SelectedEntityChangedEventArgs : EventArgs

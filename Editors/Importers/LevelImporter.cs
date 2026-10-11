@@ -11,7 +11,9 @@ using FrostySdk.Managers;
 using FrostySdk.Resources;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
+using LevelEditorPlugin.Library;
 using LevelEditorPlugin.Managers;
+using LevelEditorPlugin.Resources.Hkx;
 using MeshSetPlugin;
 using SharpDX;
 using System;
@@ -40,8 +42,6 @@ namespace LevelEditorPlugin.Editors.Importers
             public string LevelName { get; set; }
             [DisplayName("Overwrite Level")]
             public bool OverwriteLevel { get; set; } = true;
-            [DisplayName("Auto-Generate Collision")]
-            public bool GenerateCollision { get; set; } = true;
             [DisplayName("Object Offset")]
             public Vec3 ObjectOffset { get; set; }
         }
@@ -53,6 +53,18 @@ namespace LevelEditorPlugin.Editors.Importers
             public EbxAssetEntry ColorTexture { get; set; }
             public EbxAssetEntry NormalTexture { get; set; }
             public EbxAssetEntry ETTTexture { get; set; }
+        }
+
+        private struct FromTo
+        {
+            public int From;
+            public int To;
+
+            public FromTo(int from, int to)
+            {
+                From = from;
+                To = to;
+            }
         }
 
         private class ObjectInfo
@@ -104,9 +116,11 @@ namespace LevelEditorPlugin.Editors.Importers
         private GameDefaults gameDefaults;
 
         private static RigidMeshAsset meshSample;
+        private static HavokAsset havokSample;
         private static TextureAsset textureSample;
 
         private const int LodCount = 1;
+        private const int SectionsCount = 1;
 
         private readonly string[] colorNames =
         {
@@ -135,11 +149,10 @@ namespace LevelEditorPlugin.Editors.Importers
             {
                 LevelName = DateTime.Now.ToString("yyyy-MM-dd_HHmmss"),
                 OverwriteLevel = Config.Get<bool>("OverwriteLevel", true),
-                GenerateCollision = Config.Get<bool>("GenerateCollision", true),
                 ObjectOffset = Config.Get<Vec3>("ObjectOffset", new Vec3())
             };
 
-            if (FrostyImportExportBox.Show("Level Import Settings", FrostyImportExportType.Export, importSettings) == MessageBoxResult.OK)
+            if (FrostyImportExportBox.Show("Level Import Settings", FrostyImportExportType.Import, importSettings) == MessageBoxResult.OK)
             {
                 FrostyOpenFileDialog ofd = new FrostyOpenFileDialog("Open Level Folder", "All files (*.*)|*.*", "Level");
 
@@ -148,7 +161,6 @@ namespace LevelEditorPlugin.Editors.Importers
                     string levelPath = Path.GetDirectoryName(ofd.FileName);
 
                     Config.Add("OverwriteLevel", importSettings.OverwriteLevel);
-                    Config.Add("GenerateCollision", importSettings.GenerateCollision);
                     Config.Add("ObjectOffset", importSettings.ObjectOffset);
                     Config.Save();
 
@@ -347,7 +359,10 @@ namespace LevelEditorPlugin.Editors.Importers
             {
                 task.Update("Importing mesh " + obj.Name, progress: ((double)count / objects.Count) * 100.0);
 
+                string fbx = Path.Combine(levelPath, "Meshes", obj.MeshName + ".fbx");
+                
                 string meshAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}_Mesh";
+                string physicsAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}_Physics_Win32";
                 string blueprintAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}";
 
                 if (App.AssetManager.GetEbxEntry(meshAssetPath) == null || App.AssetManager.GetEbxEntry(blueprintAssetPath) == null)
@@ -357,20 +372,13 @@ namespace LevelEditorPlugin.Editors.Importers
                     var mesh = CreateMesh(meshAssetPath, TypeLibrary.GetType(meshSample.GetType().Name), obj);
                     var blueprint = CreateAsset(blueprintAssetPath, TypeLibrary.GetType("ObjectBlueprint"));
 
-                    var blueprintAsset = App.AssetManager.GetEbx(blueprint);
                     var meshAsset = App.AssetManager.GetEbx(mesh);
 
                     var meshResEntry = App.AssetManager.GetResEntry((meshAsset.RootObject as MeshAsset).MeshSetResource);
                     var meshSet = App.AssetManager.GetResAs<MeshSet>(meshResEntry);
 
-                    var objBlueprint = App.AssetManager.GetEbx(blueprint).RootObject as ObjectBlueprint;
-
-                    ApplyObjectBlueprintDefaults(blueprintAsset, objBlueprint, mesh);
-
                     try
                     {
-                        string fbx = Path.Combine(levelPath, "Meshes", obj.MeshName + ".fbx");
-
                         if (File.Exists(fbx))
                         {
                             var fbxImporter = new FBXImporter(App.Logger);
@@ -387,6 +395,48 @@ namespace LevelEditorPlugin.Editors.Importers
                 }
 
                 count++;
+            }
+
+            count = 0;
+            int collisionCount = objects.Where(o => o.Created && !o.Name.StartsWith("NoCollision")).Count();
+            foreach (var obj in objects)
+            {
+                if (!obj.Created || obj.Name.StartsWith("NoCollision"))
+                    continue;
+
+                task.Update("Importing collision for " + obj.MeshName, progress: ((double)count / collisionCount) * 100.0);
+
+                string objWavefront = Path.Combine(levelPath, "Meshes", obj.MeshName + "_Collision.obj");
+                string physicsAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}_Physics_Win32";
+
+                CreateCollision(physicsAssetPath, havokSample, objWavefront);
+
+                count++;
+            }
+
+            foreach (var obj in objects)
+            {
+                if (!obj.Created)
+                    continue;
+
+                string meshAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}_Mesh";
+                string physicsAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}_Physics_Win32";
+                string blueprintAssetPath = $"_leveleditor/{importSettings.LevelName}/Meshes/{obj.MeshName}";
+
+                var mesh = App.AssetManager.GetEbxEntry(meshAssetPath);
+                var blueprint = App.AssetManager.GetEbxEntry(blueprintAssetPath);
+                var blueprintAsset = App.AssetManager.GetEbx(blueprint);
+                var objBlueprint = blueprintAsset.RootObject as ObjectBlueprint;
+
+                if (!obj.Name.StartsWith("NoCollision"))
+                {
+                    var physics = App.AssetManager.GetEbxEntry(physicsAssetPath);
+                    ApplyObjectBlueprintDefaults(blueprintAsset, objBlueprint, mesh, physics);
+                }
+                else
+                {
+                    ApplyObjectBlueprintDefaults(blueprintAsset, objBlueprint, mesh);
+                }
             }
 
             try
@@ -524,48 +574,6 @@ namespace LevelEditorPlugin.Editors.Importers
                 BundleManager.Instance.Clear();
             }
 
-            task.Update("Creating collision");
-
-            string collisionLayerName = "layer1_collision";
-            CreateLayer(collisionLayerName, out var collisionLayer, out var worldPartEntity);
-            var collisionLayerAsset = App.AssetManager.GetEbx(collisionLayer);
-
-            var collisionSceneLayer = new SceneLayer(worldPartEntity, collisionLayerName);
-            rootLayer.AddLayer(collisionSceneLayer);
-
-            var parent = collisionSceneLayer.Entity as WorldPartReferenceObject;
-
-            if (importSettings.GenerateCollision)
-            {
-                count = 0;
-                foreach (var obj in objects)
-                {
-                    if (obj.Name.StartsWith("NoCollision", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    task.Update("Creating collision (auto-generated)", progress: ((double)count / objects.Count) * 100.0);
-
-                    var transform = obj.Transform * offset;
-                    var collisionEntity = AddCollision(CollisionType.Cube, obj.SharpDXBoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
-                    collisionEntities.Add(collisionEntity);
-                    count++;
-                }
-            }
-
-            count = 0;
-            foreach (var collision in collisions)
-            {
-                task.Update("Creating collision (manual)", progress: ((double)count / collisions.Count) * 100.0);
-
-                var transform = collision.Transform * offset;
-                var collisionEntity = AddCollision(collision.Type, collision.BoundingBox, transform, collisionLayerAsset, collisionSceneLayer, parent);
-                collisionEntities.Add(collisionEntity);
-
-                count++;
-            }
-
-            App.AssetManager.ModifyEbx(collisionLayer.Name, collisionLayerAsset);
-
             MeshVariationDb.LoadModifiedVariations();
             meshEntities.AddRange(entities);
 
@@ -662,6 +670,90 @@ namespace LevelEditorPlugin.Editors.Importers
             return collisionEntity;
         }
 
+        private void ApplyObjectBlueprintDefaults(EbxAsset blueprintAsset, ObjectBlueprint objBlueprint, EbxAssetEntry mesh, EbxAssetEntry physics)
+        {
+            var staticModelEntity = Utils.CreateEntityData(typeof(StaticModelEntityData), blueprintAsset) as StaticModelEntityData;
+            blueprintAsset.AddObject(staticModelEntity);
+            var partComponentEntity = Utils.CreateEntityData(typeof(PartComponentData), blueprintAsset) as PartComponentData;
+            blueprintAsset.AddObject(partComponentEntity);
+            var healthState = Utils.CreateEntityData(typeof(HealthStateData), blueprintAsset) as HealthStateData;
+            blueprintAsset.AddObject(healthState);
+            var staticModelPhysics = Utils.CreateEntityData(typeof(StaticModelPhysicsComponentData), blueprintAsset) as StaticModelPhysicsComponentData;
+            blueprintAsset.AddObject(staticModelPhysics);
+            var rbEntity1 = Utils.CreateEntityData(typeof(RigidBodyData), blueprintAsset) as RigidBodyData;
+            blueprintAsset.AddObject(rbEntity1);
+            var rbEntity2 = Utils.CreateEntityData(typeof(RigidBodyData), blueprintAsset) as RigidBodyData;
+            blueprintAsset.AddObject(rbEntity2);
+            var staticModelHealth = Utils.CreateEntityData(typeof(StaticModelHealthComponentData), blueprintAsset) as StaticModelHealthComponentData;
+            blueprintAsset.AddObject(staticModelHealth);
+            var physicsEntity = Utils.CreateEntityData(typeof(PhysicsEntityData), blueprintAsset) as PhysicsEntityData;
+            blueprintAsset.AddObject(physicsEntity);
+
+            ApplyRigidBodyDefaults(rbEntity1);
+            ApplyRigidBodyDefaults(rbEntity2);
+            rbEntity1.Flags = 0;
+            rbEntity1.Asset = CreateRef(physics, blueprintAsset);
+            rbEntity1.RaycastRootShapeIndex = 0;
+            rbEntity2.Flags = 0;
+            rbEntity2.Asset = CreateRef(physics, blueprintAsset);
+            rbEntity2.RaycastRootShapeIndex = 0;
+            rbEntity2.Realm = Realm.Realm_Client;
+            rbEntity2.AddToSpatialQueryManager = false;
+            rbEntity2.WorldIndex = 1;
+            rbEntity2.RigidBodyType = RigidBodyType.RBTypeProxy;
+
+            healthState.CopyDamageToBanger = true;
+            healthState.PhysicsEnabled = true;
+            healthState.Health = 100;
+            healthState.CanSupportOtherParts = true;
+            healthState.RegenerateDelay = 1;
+            healthState.RegenerateSpeed = 1;
+            partComponentEntity.HealthStates = new List<PointerRef> { new PointerRef(internalRef: healthState) };
+            staticModelPhysics.PhysicsBodies = new List<PointerRef>
+            {
+                new PointerRef(internalRef: rbEntity1),
+                new PointerRef(internalRef: rbEntity2)
+            };
+            staticModelPhysics.Parts = new List<PhysicsPartData>() { new PhysicsPartData() };
+            staticModelPhysics.Realm = Realm.Realm_ClientAndServer;
+            physicsEntity.Asset = CreateRef(physics, blueprintAsset);
+            physicsEntity.Mass = 1000010;
+            physicsEntity.InertiaModifier = new Vec3() { x = 1, y = 1, z = 1 };
+            physicsEntity.AngularVelocityDamping = -1;
+            physicsEntity.LinearVelocityDamping = -1;
+            staticModelEntity.Components = new List<PointerRef>
+            {
+                new PointerRef(internalRef: partComponentEntity),
+                new PointerRef(internalRef: staticModelPhysics),
+                new PointerRef(internalRef: staticModelHealth)
+            };
+            staticModelEntity.ClientRuntimeComponentCount = 3;
+            staticModelEntity.ServerRuntimeComponentCount = 3;
+            staticModelEntity.ClientRuntimeTransformationCount = 1;
+            staticModelEntity.ServerRuntimeTransformationCount = 1;
+            staticModelEntity.Enabled = true;
+            staticModelEntity.PhysicsData = new PointerRef(internalRef: physicsEntity);
+            staticModelEntity.Mesh = CreateRef(mesh.Name, blueprintAsset);
+            staticModelEntity.PhysicsPartInfos = new List<PhysicsPartInfo> { new PhysicsPartInfo() };
+            staticModelEntity.NetworkInfo = new StaticModelNetworkInfo
+            {
+                PartNetworkIdRanges = new List<IndexRange>
+                {
+                    new IndexRange
+                    {
+                        First = 4294967295,
+                        Last = 4294967295
+                    }
+                }
+            };
+            staticModelEntity.ExplosionSensitiveDistance = 2.5f;
+            staticModelEntity.Visible = true;
+
+            objBlueprint.Object = new PointerRef(internalRef: staticModelEntity);
+
+            App.AssetManager.ModifyEbx(objBlueprint.Name, blueprintAsset);
+        }
+
         private void ApplyObjectBlueprintDefaults(EbxAsset blueprintAsset, ObjectBlueprint objBlueprint, EbxAssetEntry mesh)
         {
             var staticModelEntity = Utils.CreateEntityData(typeof(StaticModelEntityData), blueprintAsset) as StaticModelEntityData;
@@ -708,7 +800,8 @@ namespace LevelEditorPlugin.Editors.Importers
         private void ApplyRigidBodyDefaults(RigidBodyData data)
         {
             data.Realm = Realm.Realm_ClientAndServer;
-            data.CollisionLayer = RigidBodyCollisionLayer.RigidBodyCollisionLayer_StaticLayer;
+            data.RaycastRootShapeIndex = 1;
+            data.AddToSpatialQueryManager = true;
             data.Material = new MaterialDecl() { Packed = 128 };
             data.DynamicFriction = -1;
             data.StaticFriction = -1;
@@ -717,7 +810,8 @@ namespace LevelEditorPlugin.Editors.Importers
             data.InertiaModifier = new Vec3() { x = 1, y = 1, z = 1 };
             data.AngularVelocityDamping = -1;
             data.LinearVelocityDamping = -1;
-            data.QualityType = RigidBodyQualityType.RigidBodyQualityType_Invalid;
+            data.MotionType = RigidBodyMotionType.RigidBodyMotionType_Fixed;
+            data.PartIndices = new List<uint> { 0 };
             data.IsRootController = true;
         }
 
@@ -848,6 +942,31 @@ namespace LevelEditorPlugin.Editors.Importers
             return entry;
         }
 
+        private EbxAssetEntry CreateCollision(string name, HavokAsset sample, string objPath)
+        {
+            var existing = App.AssetManager.GetEbxEntry(name);
+            if (existing != null)
+                return existing;
+
+            var entry = CreateAsset(name, TypeLibrary.GetType("HavokAsset"));
+            var asset = App.AssetManager.GetEbx(entry);
+
+            var resEntry = App.AssetManager.GetResEntry(sample.Resource);
+
+            var newResEntry = DuplicateRes(resEntry, name, ResourceType.HavokPhysicsData);
+            ((HavokAsset)asset.RootObject).Resource = newResEntry.ResRid;
+            var newPhysics = App.AssetManager.GetResAs<Resources.HavokPhysicsData>(newResEntry);
+
+            newPhysics.Collision = ImportCollision(objPath);
+
+            entry.LinkAsset(newResEntry);
+
+            App.AssetManager.ModifyEbx(entry.Name, asset);
+            App.AssetManager.ModifyRes(newResEntry.Name, newPhysics);
+
+            return entry;
+        }
+
         private EbxAssetEntry CreateTexture(string name, TextureAsset sample, string texturePath)
         {
             var existing = App.AssetManager.GetEbxEntry(name);
@@ -961,6 +1080,155 @@ namespace LevelEditorPlugin.Editors.Importers
                 FileGuid = entry.Guid,
                 ClassGuid = refAsset.RootInstanceGuid
             });
+        }
+
+        // Credit to Magix for this .obj converting!:
+        // https://github.com/MagixGames/FrostyHavokPlugin/blob/master/HavokFb/Program.cs
+        private PolytopeShape ImportCollision(string objPath)
+        {
+            var shape = new PolytopeShape();
+            var obj = WavefrontObj.ReadFromFile(objPath).First();
+
+            Vector3 center = new Vector3();
+            foreach (var verts in obj.Vertices)
+            {
+                center += verts.ToVector3();
+            }
+            center /= obj.Vertices.Count;
+
+            foreach (var verts in obj.GetFaces())
+            {
+                var n = new List<Vector3>();
+                verts.ForEach(vert => n.Add(new Vector3(vert.X, vert.Y, vert.Z)));
+                if (n.Count < 3)
+                {
+                    throw new InvalidDataException("Too little vectors");
+                }
+
+                Vector3 normal = new Vector3();
+                for (int i = 1; i < n.Count - 1; i++)
+                {
+                    normal += Vector3.Cross(n[i] - n[0], n[i + 1] - n[0]);
+                }
+                normal = Vector3.Normalize(normal);
+
+                float distance = 0.0f;
+                for (int i = 0; i < verts.Count; i++)
+                {
+                    Vector3 vertex = new Vector3(verts[i].X, verts[i].Y, verts[i].Z);
+                    distance += -Vector3.Dot(vertex, normal);
+                }
+
+                distance /= n.Count;
+
+                if (Vector3.Dot(normal, center) + distance > 0.0f)
+                {
+                    normal = -normal;
+                    distance = -distance;
+                }
+                
+                shape.Planes.Add(new Vector4(normal, distance));
+            }
+
+            var verticesPerFace = new List<int>();
+            var indices = new List<int>();
+            foreach (var f in obj.Faces)
+            {
+                int startIndex = indices.Count;
+                int length = f.Indices.Count;
+                verticesPerFace.Add(length);
+                indices.AddRange(f.Indices);
+            }
+
+            var edgeToFace = new Dictionary<FromTo, int>(indices.Count);
+            int offset = 0;
+            for (int i = 0; i < verticesPerFace.Count; i++)
+            {
+                int numIndices = verticesPerFace[i];
+                for (int j = numIndices - 1, k = 0; k < numIndices; j = k++)
+                {
+                    var key = new FromTo(indices[offset + j], indices[offset + k]);
+                    if (!edgeToFace.ContainsKey(key))
+                    {
+                        edgeToFace.Add(key, i);
+                    }
+                }
+
+                offset += numIndices;
+            }
+
+            for (int i = 0; i < obj.Vertices.Count; i++)
+            {
+                float w = BitConverter.ToSingle(BitConverter.GetBytes(i | 0x3f000000), 0);
+                shape.Vertices.Add(new Vector4(obj.Vertices[i].ToVector3(), w));
+            }
+
+            int maxNumEdgesPerFaces = 0;
+            int indicesOffset = 0;
+
+            for (int i = 0; i < obj.Faces.Count; i++)
+            {
+                var f = obj.Faces[i];
+
+                foreach (int indice in f.Get())
+                {
+                    shape.Indices.Add((byte)(indice));
+                }
+
+                int startIndex = indicesOffset;
+                int length = f.Indices.Count;
+
+                maxNumEdgesPerFaces = Math.Max(maxNumEdgesPerFaces, length);
+
+                var face = new PolytopeShapeFace();
+                face.FirstIndex = (ushort)startIndex;
+                face.NumIndices = (byte)length;
+
+                float maxCosAngle = 0f;
+                for (int j = length - 1, k = 0; k < length; j=k++)
+                {
+                    var key = new FromTo(indices[startIndex + k], indices[startIndex + j]);
+                    if (edgeToFace.TryGetValue(key, out int fIndex))
+                    {
+                        maxCosAngle = Math.Max(maxCosAngle, Vector3.Dot(shape.Planes[i].ToVector3(), shape.Planes[fIndex].ToVector3()));
+                    }
+                }
+
+                float angle = (float)(Math.Acos(maxCosAngle) * 0.5);
+                face.MinHalfAngle = (byte)Clamp((int)(angle * 510 / Math.PI + 0.5f), 0, 255);
+
+                shape.Faces.Add(face);
+                indicesOffset += length;
+            }
+
+            while ((shape.Vertices.Count & 3) != 0)
+            {
+                shape.Vertices.Add(shape.Vertices.Last());
+            }
+
+            int numFaces = verticesPerFace.Count;
+            int numFacesMin4 = Math.Min(numFaces, 4);
+            while ((verticesPerFace.Count & 3) != 0)
+            {
+                shape.Planes.Add(new Vector4(0, 0, 0, float.MinValue));
+                verticesPerFace.Add(0);
+            }
+
+            return shape;
+        }
+
+        private float Clamp(float value, float min, float max)
+        {
+            if (value < min)
+            {
+                return min;
+            }
+            else if (value > max)
+            {
+                return max;
+            }
+
+            return value;
         }
 
         #region Import Texture
@@ -1255,7 +1523,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
                 if (App.AssetManager.GetEbx(rigid).RootObject is RigidMeshAsset asset)
                 {
-                    if (asset.Materials.Count != 1)
+                    if (asset.Materials.Count != SectionsCount)
                         continue;
 
                     int lods = App.AssetManager.GetResAs<MeshSet>(App.AssetManager.GetResEntry(asset.MeshSetResource)).Lods.Count;
@@ -1263,6 +1531,27 @@ namespace LevelEditorPlugin.Editors.Importers
                         continue;
 
                     meshSample = asset;
+                    break;
+                }
+            }
+
+            foreach (var havok in App.AssetManager.EnumerateEbx("HavokAsset"))
+            {
+                if (!havok.Bundles.Any(b => App.AssetManager.GetBundleEntry(b).Type == BundleType.SubLevel))
+                    continue;
+
+                if (!CheckReferencesTo(havok, "ObjectBlueprint"))
+                    continue;
+
+                if (App.AssetManager.GetEbx(havok).RootObject is HavokAsset asset)
+                {
+                    var resEntry = App.AssetManager.GetResEntry(asset.Resource);
+                    var physics = App.AssetManager.GetResAs<Resources.HavokPhysicsData>(resEntry);
+
+                    if (physics.GetOriginalCollison() == null)
+                        continue;
+
+                    havokSample = asset;
                     break;
                 }
             }
