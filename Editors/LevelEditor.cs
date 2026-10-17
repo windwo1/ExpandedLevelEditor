@@ -139,6 +139,44 @@ namespace LevelEditorPlugin.Editors
         {
             return new Vector4(vec.X, vec.Y, vec.Z, w);
         }
+
+        public static Vector3 ReadVector3(this NativeReader reader)
+        {
+            Vector3 vec = new Vector3();
+            vec.X = reader.ReadFloat();
+            vec.Y = reader.ReadFloat();
+            vec.Z = reader.ReadFloat();
+            reader.Position += 4;
+
+            return vec;
+        }
+
+        public static Vector4 ReadVector4(this NativeReader reader)
+        {
+            Vector4 vec = new Vector4();
+            vec.X = reader.ReadFloat();
+            vec.Y = reader.ReadFloat();
+            vec.Z = reader.ReadFloat();
+            vec.W = reader.ReadFloat();
+
+            return vec;
+        }
+
+        public static void Write(this NativeWriter writer, Vector3 vec)
+        {
+            writer.Write(vec.X);
+            writer.Write(vec.Y);
+            writer.Write(vec.Z);
+            writer.Write(0.0f);
+        }
+
+        public static void Write(this NativeWriter writer, Vector4 vec)
+        {
+            writer.Write(vec.X);
+            writer.Write(vec.Y);
+            writer.Write(vec.Z);
+            writer.Write(vec.W);
+        }
     }
 
     public class SelectedEntityChangedEventArgs : EventArgs

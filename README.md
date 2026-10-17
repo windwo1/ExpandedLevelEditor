@@ -11,13 +11,6 @@ With this fork of the Level Editor, you'll be able to now:
 - Duplicate a selected object
 - Modify an object's transform from the Properties panel, so you're no longer limited to the Translate gizmo
 
-# **Important Note:**
-If you're editing static models for a mod (which most likely you will, since maps are mostly made of them), anyone using your mod will need this plugin to open it (plugin for the mod manager):
-
-https://github.com/windwo1/HavokPhysicsResourcePlugin/releases
-
-Also make sure you don't have both the Havok plugin and the Level Editor plugin on at the same time, it seems to cause static model edits to not work.
-
 ## Exporting
 
 This plugin will also let you export levels to Blender, and will export meshes, materials, terrain and terrain layers.

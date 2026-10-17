@@ -1,6 +1,6 @@
 # All of this apart from material importing is made by Sprett (@sprettwashere on discord)
 
-# Level importer for PvZ GW1
+# Level importer for PvZ GW2
 
 import bpy
 import os
@@ -31,6 +31,9 @@ def comma_float(text):
     except:
         return 0.0
 
+def parse_float(s):
+    return float(s.replace(',', '.'))
+
 def progress(i,t,label):
     print(f"\r[{label}] {i}/{t}", end='')
     sys.stdout.flush()
@@ -58,6 +61,33 @@ def duplicate_hierarchy_fast(source_root, collection):
             new.parent = mapping[old.parent]
 
     return mapping[source_root]
+
+color_names = [
+    "Color",
+    "Diffuse"
+]
+
+psa_names = [
+    "PSA",
+    "SSO",
+    "Specular_Masks"
+]
+
+def get_texture_param(name, params):
+    if name in params:
+        return params.get(name)
+
+    if name == "Color":
+        for color in color_names:
+            if color in params:
+                return params.get(color)
+
+    if name == "PSA":
+        for psa in psa_names:
+            if psa in params:
+                return params.get(psa)
+
+    return None
 
 
 class ImportFolderOperator(Operator):
@@ -100,7 +130,7 @@ class ImportFolderOperator(Operator):
             settings = element.find('Settings')
 
             if settings is not None:
-                terrain_decimation = float(settings.findtext('TerrainDecimation'))
+                terrain_decimation = parse_float(settings.findtext('TerrainDecimation'))
                 break
 
         for filename in os.listdir(terrain_folder):
@@ -128,11 +158,11 @@ class ImportFolderOperator(Operator):
                 bpy.ops.mesh.customdata_custom_splitnormals_clear()
                 bpy.ops.object.mode_set(mode='OBJECT')
                 obj.select_set(False)
-
+                    
                 imported_objects.extend(context.selected_objects)
                 self.report({'INFO'}, f"Imported: {filename}")
 
-        if terrain_decimation < 1 and terrain_decimation > 0:
+        if terrain_decimation < 1 and terrain_decimation > 0 and len(terrain_collection.objects) > 0:
             bpy.ops.object.select_all(action="DESELECT")
             objs = list(terrain_collection.objects)
 
@@ -154,8 +184,6 @@ class ImportFolderOperator(Operator):
             decimate.ratio = terrain_decimation
             bpy.ops.object.modifier_apply(modifier=decimate.name)
 
-            terrain.name = "Terrain"
-
         bpy.data.orphans_purge(do_recursive=True)
         gc.collect()
         
@@ -175,12 +203,13 @@ class ImportFolderOperator(Operator):
                     with open(filename, 'r', encoding='utf-8') as f:
                         text = f.read()
                     text = "<root>\n" + text + "\n</root>"
-                    return ET.fromstring(text)
+                    try:
+                        return ET.fromstring(text)
+                    except:
+                        print("Failed to load " + filename)
+                        return None
 
             root = load_xml_with_fallback(xml_file_path)
-
-            def parse_float(s):
-                return float(s.replace(',', '.'))
 
             def rotation_from_linear_transform(lt_node):
                 def vec3_swap(node_name):
@@ -211,8 +240,7 @@ class ImportFolderOperator(Operator):
                 g = parse_float(color_node.find('y').text)
                 b = parse_float(color_node.find('z').text)
                 return (r, g, b)
-            
-            light_multiplier = 8
+
 
             # Place PBR Sphere Light
             for light_data in root.findall('.//PbrSphereLightEntityData'):
@@ -227,9 +255,7 @@ class ImportFolderOperator(Operator):
                 light.color = get_color(light_data)
 
                 intensity_node = light_data.find('Intensity')
-
-                energy = float(intensity_node.text) if intensity_node is not None else 1.0
-                light.energy = energy * light_multiplier
+                light.energy = float(intensity_node.text) if intensity_node is not None else 1.0
 
                 light_obj = bpy.data.objects.new(light.name, light)
                 bpy.context.collection.objects.link(light_obj)
@@ -249,9 +275,7 @@ class ImportFolderOperator(Operator):
                 light.color = get_color(light_data)
 
                 intensity_node = light_data.find('Intensity')
-
-                energy = float(intensity_node.text) if intensity_node is not None else 1.0
-                light.energy = energy * light_multiplier
+                light.energy = float(intensity_node.text) if intensity_node is not None else 1.0
 
                 radius_node = light_data.find('Radius')
                 if radius_node is not None:
@@ -278,9 +302,7 @@ class ImportFolderOperator(Operator):
                 light.color = get_color(light_data)
 
                 intensity_node = light_data.find('Intensity')
-
-                energy = float(intensity_node.text) if intensity_node is not None else 1.0
-                light.energy = energy * light_multiplier
+                light.energy = float(intensity_node.text) if intensity_node is not None else 1.0
 
                 inner_angle_node = light_data.find('InnerAngle')
                 outer_angle_node = light_data.find('OuterAngle')
@@ -314,9 +336,7 @@ class ImportFolderOperator(Operator):
                 light.color = get_color(light_data)
 
                 intensity_node = light_data.find('Intensity')
-
-                energy = float(intensity_node.text) if intensity_node is not None else 1.0
-                light.energy = energy * light_multiplier
+                light.energy = float(intensity_node.text) if intensity_node is not None else 1.0
 
                 # Cone angles
                 inner_angle_node = light_data.find('ConeInnerAngle')
@@ -387,6 +407,7 @@ class ImportFolderOperator(Operator):
 
                 if settings is not None:
                     transparent_materials = settings.findtext('UseAlpha') == "True"
+                    emissive_materials = settings.findtext('UseEmission') == "True"
 
                 blueprint = element.findtext('Blueprint')
                 transform = element.find('Transform/LinearTransform')
@@ -451,17 +472,24 @@ class ImportFolderOperator(Operator):
                         value = texture_param.findtext("Value")
 
                         # for param names with prefixes like 'Material1_'
-                        names = ["Diffuse", "Normal", "PSA", "Specular_Masks"]
+                        names = [
+                            "Color", 
+                            "Diffuse", 
+                            "Normal", 
+                            "ASM",
+                            "PSA", 
+                            "Specular_Masks",
+                            "ETT"
+                        ]
 
                         for x in names:
                             if x in name:
                                 name = x
                                 break
 
-                        if name not in texture_params:
-                            texture_params[name] = value
+                        texture_params[name] = value
 
-                    if material_name not in inner_materials:
+                    if material_name not in materials:
                         inner_materials[material_name] = [vector_params, texture_params]
                 
                 materials[outer_name] = inner_materials
@@ -484,6 +512,8 @@ class ImportFolderOperator(Operator):
 
                 if Obj_Name not in Asset_Pool_List:
                     obj_material = materials.get(Obj_Name.lower() + "_Mesh") 
+                    if obj_material is None:
+                        continue
 
                     FBX_Path = Path(Working_Folder)/f"{Obj_Name}_mesh.fbx"
 
@@ -504,7 +534,7 @@ class ImportFolderOperator(Operator):
                                 continue
 
                             obj_pool.append(mesh)
-
+                            
                             material_name = f"{Obj_Name}:{mesh.name}"
 
                             if material_name in bpy.data.materials:
@@ -515,15 +545,16 @@ class ImportFolderOperator(Operator):
                                     vector_params = mesh_material[0]
                                     texture_params = mesh_material[1]
 
-                                    diffuse = texture_params.get("Diffuse")
-                                    psa = texture_params.get("PSA")
-                                    normal = texture_params.get("Normal")
+                                    asm = get_texture_param("ASM", texture_params)
+                                    psa = get_texture_param("PSA", texture_params)
+                                    color = get_texture_param("Color", texture_params)
+                                    ett = get_texture_param("ETT", texture_params)
+                                    normal = get_texture_param("Normal", texture_params)
 
-                                    if psa is None:
-                                        psa = texture_params.get("Specular_Masks")
-
+                                    asm_path = os.path.join(textures_folder, f"{asm}.png")
                                     psa_path = os.path.join(textures_folder, f"{psa}.png")
-                                    color_path = os.path.join(textures_folder, f"{diffuse}.png")
+                                    color_path = os.path.join(textures_folder, f"{color}.png")
+                                    ett_path = os.path.join(textures_folder, f"{ett}.png")
                                     normal_path = os.path.join(textures_folder, f"{normal}.png")
 
                                     material = bpy.data.materials.new(name=material_name)
@@ -533,7 +564,6 @@ class ImportFolderOperator(Operator):
                                     tint_g = 1
                                     tint_b = 1
 
-                                    use_vector_params = False
                                     for param in vector_params:
                                         param_name = param[0]
                                         param_type = param[1]
@@ -547,8 +577,6 @@ class ImportFolderOperator(Operator):
                                         ]
 
                                         if any(tint_name in param_name for tint_name in possible_tint_names) and param_type == "ShaderParameterType_Color":
-                                            use_vector_params = True
-
                                             rgb = param_value.split(",")
 
                                             tint_r = float(rgb[0])
@@ -557,75 +585,154 @@ class ImportFolderOperator(Operator):
                                             break
 
                                     bsdf = material.node_tree.nodes["Principled BSDF"]
-                                    bsdf.location = (700, 200)
+                                    bsdf.inputs["Base Color"].default_value = (tint_r, tint_g, tint_b, 1.0)
+                                    bsdf.location = (0, 0)
 
                                     output_node = material.node_tree.nodes["Material Output"]
-                                    output_node.location = (1300, 200)
+                                    output_node.location = (500, 0)
 
-                                    psa_texture_node = material.node_tree.nodes.new("ShaderNodeTexImage")
-                                    psa_texture_node.location = (-800, 100)
-
-                                    psa_seperate_node = material.node_tree.nodes.new("ShaderNodeSeparateColor")
-                                    psa_seperate_node.location = (-400, 100)
-
-                                    invert_smoothness_node = material.node_tree.nodes.new("ShaderNodeInvert")
-                                    invert_smoothness_node.location = (-100, 50)
+                                    pbr_texture_node = material.node_tree.nodes.new("ShaderNodeTexImage")
+                                    pbr_texture_node.location = (-1150, 100)
 
                                     color_texture_node = material.node_tree.nodes.new("ShaderNodeTexImage")
-                                    color_texture_node.location = (-800, 450)
+                                    color_texture_node.location = (-1150, 400)
 
-                                    tint_color_node = material.node_tree.nodes.new("ShaderNodeMix")
-                                    tint_color_node.data_type = "RGBA"
-                                    tint_color_node.blend_type = "MULTIPLY"
-                                    tint_color_node.inputs["Factor"].default_value = 1.0
-                                    tint_color_node.inputs["B"].default_value = (tint_r, tint_g, tint_b, 1.0)
-                                    tint_color_node.location = (-400, 350)
-
-                                    ao_mix_node = material.node_tree.nodes.new("ShaderNodeMixShader")
-                                    ao_mix_node.location = (1000, 400)
+                                    ett_texture_node = material.node_tree.nodes.new("ShaderNodeTexImage")
+                                    ett_texture_node.location = (-1300, -800)
 
                                     normal_texture_node = material.node_tree.nodes.new("ShaderNodeTexImage")
-                                    normal_texture_node.location = (-800, -250)
+                                    normal_texture_node.location = (-1900, -350)
+
+                                    tint_multiply_node = material.node_tree.nodes.new("ShaderNodeMix")
+                                    tint_multiply_node.data_type = "RGBA"
+                                    tint_multiply_node.blend_type = "MULTIPLY"
+                                    tint_multiply_node.inputs[7].default_value = (tint_r, tint_g, tint_b, 1.0)
+                                    tint_multiply_node.location = (-650, 500)
+
+                                    multiply_ao_node = material.node_tree.nodes.new("ShaderNodeMix")
+                                    multiply_ao_node.data_type = "RGBA"
+                                    multiply_ao_node.blend_type = "MULTIPLY"
+                                    multiply_ao_node.inputs["Factor"].default_value = 1.0
+                                    multiply_ao_node.location = (-350, 500)
+
+                                    pbr_seperate_node = material.node_tree.nodes.new("ShaderNodeSeparateColor")
+                                    pbr_seperate_node.location = (-750, 100)
+
+                                    smoothness_subtract_node = material.node_tree.nodes.new("ShaderNodeMath")
+                                    smoothness_subtract_node.operation = "SUBTRACT"
+                                    smoothness_subtract_node.inputs[0].default_value = 1.0
+                                    smoothness_subtract_node.location = (-550, 100)
+
+                                    smoothness_multiply_node = material.node_tree.nodes.new("ShaderNodeMath")
+                                    smoothness_multiply_node.operation = "MULTIPLY"
+                                    smoothness_multiply_node.location = (-350, 100)
+
+                                    normal_multiply_vector_node = material.node_tree.nodes.new("ShaderNodeVectorMath")
+                                    normal_multiply_vector_node.operation = "MULTIPLY"
+                                    normal_multiply_vector_node.inputs[1].default_value[0] = 2.0
+                                    normal_multiply_vector_node.inputs[1].default_value[1] = 2.0
+                                    normal_multiply_vector_node.inputs[1].default_value[2] = 0.0
+                                    normal_multiply_vector_node.location = (-1500, -250)
+
+                                    normal_subtract_vector_node = material.node_tree.nodes.new("ShaderNodeVectorMath")
+                                    normal_subtract_vector_node.operation = "SUBTRACT"
+                                    normal_subtract_vector_node.inputs[1].default_value[0] = 1.0
+                                    normal_subtract_vector_node.inputs[1].default_value[1] = 1.0
+                                    normal_subtract_vector_node.inputs[1].default_value[2] = 0.0
+                                    normal_subtract_vector_node.location = (-1300, -250)
+
+                                    normal_dotproduct_vector_node = material.node_tree.nodes.new("ShaderNodeVectorMath")
+                                    normal_dotproduct_vector_node.operation = "DOT_PRODUCT"
+                                    normal_dotproduct_vector_node.location = (-1100, -250)
+
+                                    normal_subtract_node = material.node_tree.nodes.new("ShaderNodeMath")
+                                    normal_subtract_node.operation = "SUBTRACT"
+                                    normal_subtract_node.inputs[0].default_value = 1.0
+                                    normal_subtract_node.location = (-900, -250)
+
+                                    normal_maximum_node = material.node_tree.nodes.new("ShaderNodeMath")
+                                    normal_maximum_node.operation = "MAXIMUM"
+                                    normal_maximum_node.inputs[0].default_value = 0.0
+                                    normal_maximum_node.location = (-700, -250)
+
+                                    normal_seperate_node = material.node_tree.nodes.new("ShaderNodeSeparateXYZ")
+                                    normal_seperate_node.location = (-1500, -450)
+
+                                    normal_combine_xyz = material.node_tree.nodes.new("ShaderNodeCombineXYZ")
+                                    normal_combine_xyz.location = (-500, -450)
 
                                     normal_map_node = material.node_tree.nodes.new("ShaderNodeNormalMap")
-                                    normal_map_node.inputs["Strength"].default_value = -1.0
-                                    normal_map_node.location = (200, -250)
+                                    normal_map_node.inputs["Strength"].default_value = 1.0
+                                    normal_map_node.location = (-300, -300)
 
-                                    if os.path.exists(psa_path) and psa:
-                                        psa_texture_node.image = load_texture(psa_path)
-                                        psa_texture_node.image.colorspace_settings.name = "Non-Color"
+                                    ett_seperate_node = material.node_tree.nodes.new("ShaderNodeSeparateColor")
+                                    ett_seperate_node.location = (-900, -800)
 
-                                        material.node_tree.links.new(psa_texture_node.outputs["Color"], psa_seperate_node.inputs["Color"])
-                                        material.node_tree.links.new(psa_seperate_node.outputs["Red"], bsdf.inputs["Specular IOR Level"])
-                                        material.node_tree.links.new(psa_seperate_node.outputs["Green"], invert_smoothness_node.inputs["Color"])
-                                        material.node_tree.links.new(psa_seperate_node.outputs["Blue"], ao_mix_node.inputs["Factor"])
-                                        material.node_tree.links.new(invert_smoothness_node.outputs["Color"], bsdf.inputs["Roughness"])
+                                    ett_emission_node = material.node_tree.nodes.new("ShaderNodeEmission")
+                                    ett_emission_node.location = (100, -375)
 
-                                        # the ao (ambient occlusion) in psa textures makes the material black, so it's just removed for now
-                                        #material.node_tree.links.new(ao_mix_node.outputs["Shader"], output_node.inputs["Surface"])
+                                    ett_add_shader_node = material.node_tree.nodes.new("ShaderNodeAddShader")
+                                    ett_add_shader_node.location = (300, 0)
 
-                                    if os.path.exists(color_path) and diffuse:
+                                    if os.path.exists(color_path) and color is not None:
                                         color_texture_node.image = load_texture(color_path)
 
-                                        image_source = tint_color_node.outputs["Result"] if use_vector_params else color_texture_node.outputs["Color"]
-                                        material.node_tree.links.new(image_source, bsdf.inputs["Base Color"])
-                                        material.node_tree.links.new(bsdf.outputs["BSDF"], ao_mix_node.inputs["Shader_001"])
-
-                                        if use_vector_params:
-                                            material.node_tree.links.new(color_texture_node.outputs["Color"], tint_color_node.inputs["A"])
+                                        material.node_tree.links.new(color_texture_node.outputs["Color"], tint_multiply_node.inputs[6])
+                                        material.node_tree.links.new(tint_multiply_node.outputs["Result"], multiply_ao_node.inputs[6])
+                                        material.node_tree.links.new(multiply_ao_node.outputs["Result"], bsdf.inputs["Base Color"])
 
                                         if transparent_materials:
                                             material.node_tree.links.new(color_texture_node.outputs["Alpha"], bsdf.inputs["Alpha"])
-                                    else:
-                                        # use the tint color directly
-                                        bsdf.inputs["Base Color"].default_value = (tint_r, tint_g, tint_b, 1.0)
 
-                                    if os.path.exists(normal_path) and normal:
+                                    if os.path.exists(asm_path) and asm is not None:
+                                        pbr_texture_node.image = load_texture(asm_path)
+
+                                        material.node_tree.links.new(pbr_texture_node.outputs["Color"], pbr_seperate_node.inputs["Color"])
+                                        material.node_tree.links.new(pbr_seperate_node.outputs["Red"], multiply_ao_node.inputs[7])
+                                        material.node_tree.links.new(pbr_seperate_node.outputs["Green"], smoothness_subtract_node.inputs[1])
+                                        material.node_tree.links.new(smoothness_subtract_node.outputs["Value"], smoothness_multiply_node.inputs[0])
+                                        material.node_tree.links.new(smoothness_subtract_node.outputs["Value"], smoothness_multiply_node.inputs[1])
+                                        material.node_tree.links.new(smoothness_multiply_node.outputs["Value"], bsdf.inputs["Roughness"]) 
+                                        material.node_tree.links.new(pbr_seperate_node.outputs["Blue"], bsdf.inputs["Metallic"])
+
+                                    if os.path.exists(psa_path) and psa is not None:
+                                        pbr_texture_node.image = load_texture(psa_path)
+
+                                        material.node_tree.links.new(pbr_texture_node.outputs["Color"], pbr_seperate_node.inputs["Color"])
+                                        # the ao (ambient occlusion) in psa textures makes the material black, so it's just removed for now
+                                        #material.node_tree.links.new(pbr_seperate_node.outputs["Blue"], multiply_ao_node.inputs[7])
+                                        material.node_tree.links.new(pbr_seperate_node.outputs["Green"], smoothness_subtract_node.inputs[1])
+                                        material.node_tree.links.new(smoothness_subtract_node.outputs["Value"], smoothness_multiply_node.inputs[0])
+                                        material.node_tree.links.new(smoothness_subtract_node.outputs["Value"], smoothness_multiply_node.inputs[1])
+                                        material.node_tree.links.new(smoothness_multiply_node.outputs["Value"], bsdf.inputs["Roughness"]) 
+
+                                    if os.path.exists(normal_path) and normal is not None:
                                         normal_texture_node.image = load_texture(normal_path)
                                         normal_texture_node.image.colorspace_settings.name = "Non-Color"
 
-                                        material.node_tree.links.new(normal_texture_node.outputs["Color"], normal_map_node.inputs["Color"])
+                                        material.node_tree.links.new(normal_texture_node.outputs["Color"], normal_multiply_vector_node.inputs[0])
+                                        material.node_tree.links.new(normal_multiply_vector_node.outputs["Vector"], normal_subtract_vector_node.inputs[0])
+                                        material.node_tree.links.new(normal_subtract_vector_node.outputs["Vector"], normal_dotproduct_vector_node.inputs[0])
+                                        material.node_tree.links.new(normal_subtract_vector_node.outputs["Vector"], normal_dotproduct_vector_node.inputs[1])
+                                        material.node_tree.links.new(normal_dotproduct_vector_node.outputs["Value"], normal_subtract_node.inputs[1])
+                                        material.node_tree.links.new(normal_subtract_node.outputs["Value"], normal_maximum_node.inputs[1])
+                                        material.node_tree.links.new(normal_maximum_node.outputs["Value"], normal_combine_xyz.inputs["Z"])
+                                        material.node_tree.links.new(normal_texture_node.outputs["Color"], normal_seperate_node.inputs["Vector"])
+                                        material.node_tree.links.new(normal_seperate_node.outputs["X"], normal_combine_xyz.inputs["X"])
+                                        material.node_tree.links.new(normal_seperate_node.outputs["Y"], normal_combine_xyz.inputs["Y"])
+                                        material.node_tree.links.new(normal_combine_xyz.outputs["Vector"], normal_map_node.inputs["Color"])
                                         material.node_tree.links.new(normal_map_node.outputs["Normal"], bsdf.inputs["Normal"])
+
+                                    if os.path.exists(ett_path) and ett is not None:
+                                        ett_texture_node.image = load_texture(ett_path)
+
+                                        material.node_tree.links.new(ett_texture_node.outputs["Color"], ett_emission_node.inputs["Color"])
+                                        material.node_tree.links.new(ett_texture_node.outputs["Color"], ett_seperate_node.inputs["Color"])
+                                        material.node_tree.links.new(ett_seperate_node.outputs["Red"], ett_emission_node.inputs["Strength"])
+                                        material.node_tree.links.new(ett_seperate_node.outputs["Blue"], tint_multiply_node.inputs["Factor"])
+                                        material.node_tree.links.new(ett_emission_node.outputs["Emission"], ett_add_shader_node.inputs[1])
+                                        material.node_tree.links.new(bsdf.outputs["BSDF"], ett_add_shader_node.inputs[0])
+                                        material.node_tree.links.new(ett_add_shader_node.outputs["Shader"], output_node.inputs["Surface"])
                                     
                                     mesh.data.materials.append(material)
                                 else:
@@ -670,13 +777,14 @@ class ImportFolderOperator(Operator):
                     dup_parent.rotation_mode = 'QUATERNION'
                     dup_parent.rotation_quaternion = MM_Rot_New
                     dup_parent.location = MM_Loc_New
-
-            bpy.ops.object.select_all(action="DESELECT")
             
+            bpy.ops.object.select_all(action="DESELECT")
+
             print(f"\nDeleting {len(obj_pool)} objects from the object pool...")
             for obj in obj_pool:
                 obj.select_set(True)
             bpy.ops.object.delete()
+
         
         create_meshes(os.path.join(meshes_folder, f"{Path(self.directory).name}.xml"), os.path.join(self.directory, "Materials.xml"))
 

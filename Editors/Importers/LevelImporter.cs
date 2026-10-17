@@ -693,14 +693,17 @@ namespace LevelEditorPlugin.Editors.Importers
             ApplyRigidBodyDefaults(rbEntity2);
             rbEntity1.Flags = 0;
             rbEntity1.Asset = CreateRef(physics, blueprintAsset);
+            rbEntity1.CollisionRootShapeIndex = 0;
             rbEntity1.RaycastRootShapeIndex = 0;
             rbEntity2.Flags = 0;
             rbEntity2.Asset = CreateRef(physics, blueprintAsset);
+            rbEntity2.CollisionRootShapeIndex = 0;
             rbEntity2.RaycastRootShapeIndex = 0;
             rbEntity2.Realm = Realm.Realm_Client;
             rbEntity2.AddToSpatialQueryManager = false;
             rbEntity2.WorldIndex = 1;
             rbEntity2.RigidBodyType = RigidBodyType.RBTypeProxy;
+            // CollisionRootShapeIndex and RaycastRootShapeIndex should be 1 if the compressed mesh shape is ever used
 
             healthState.CopyDamageToBanger = true;
             healthState.PhysicsEnabled = true;
@@ -1126,7 +1129,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     normal = -normal;
                     distance = -distance;
                 }
-                
+
                 shape.Planes.Add(new Vector4(normal, distance));
             }
 
@@ -1172,7 +1175,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
                 foreach (int indice in f.Get())
                 {
-                    shape.Indices.Add((byte)(indice));
+                    shape.Indices.Add((byte)indice);
                 }
 
                 int startIndex = indicesOffset;
@@ -1550,6 +1553,9 @@ namespace LevelEditorPlugin.Editors.Importers
 
                     if (physics.GetOriginalCollison() == null)
                         continue;
+
+                    //if (!physics.Inst64.Objects.Any(o => o is hknpCompressedMeshShape))
+                    //    continue;
 
                     havokSample = asset;
                     break;

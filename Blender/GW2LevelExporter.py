@@ -35,18 +35,6 @@ class ExportFolderOperator(Operator):
         mesh_files = {}
         used_names = set()
 
-        def unique_file_name(name):
-            new_name = name
-            count = 1
-            while new_name.lower() in used_names:
-                new_name = f"{name}_{count}"
-                count += 1
-            used_names.add(new_name.lower())
-            return new_name
-
-        collision_collection_name = "Collision"
-        collision_collection = bpy.data.collections[collision_collection_name] if collision_collection_name in bpy.data.collections else None
-
         use_undo = context.preferences.edit.use_global_undo
         context.preferences.edit.use_global_undo = False
 
@@ -62,9 +50,6 @@ class ExportFolderOperator(Operator):
                     continue
 
                 if len(obj.data.uv_layers) < 1:
-                    continue
-
-                if obj.users_collection[0].name == collision_collection_name:
                     continue
 
                 mesh_name = fix_filename(obj.data.name)
@@ -89,8 +74,8 @@ class ExportFolderOperator(Operator):
                 exported_obj.data = obj.data.copy()
                 exported_obj.parent = None
                 exported_obj.matrix_world = Matrix.Identity(4)
-
-                if ":lod0" not in obj.name:
+                
+                if not exported_obj.name.endswith(":lod0"):
                     # so that frosty can import the objs
                     exported_obj.name += ":lod0"
 
@@ -206,7 +191,9 @@ class ExportFolderOperator(Operator):
             for obj in objects:
                 mat_name = ""
                 if len(obj.material_slots) > 0:
-                    mat_name = obj.material_slots[0].material.name
+                    mat = obj.material_slots[0].material
+                    if mat is not None:
+                        mat_name = mat.name
 
                 obj_element = ET.SubElement(root, "Object")
                 name_element = ET.SubElement(obj_element, "Name")
@@ -296,47 +283,12 @@ class ExportFolderOperator(Operator):
             ET.indent(tree, space="    ")
             tree.write(xml_path)
 
-        def export_collision(xml_path):
-            if collision_collection is None:
-                return
-
-            root = ET.Element("Collisions")
-            
-            for obj in bpy.data.objects:
-                if obj.users_collection[0].name != collision_collection_name:
-                    continue
-
-                objType = ""
-                if obj.name.startswith("Cube"):
-                    objType = "Cube"
-                elif obj.name.startswith("Sphere"):
-                    objType = "Sphere"
-
-                if objType == "":
-                    continue
-
-                collision_element = ET.SubElement(root, "Collision")
-
-                type_element = ET.SubElement(collision_element, "Type")
-                type_element.text = objType
-
-                bbox_element = ET.SubElement(collision_element, "BoundingBox")
-                write_bbox(bbox_element, obj)
-
-                transform_element = ET.SubElement(collision_element, "Transform")
-                write_transform(transform_element, obj.matrix_world)
-
-            tree = ET.ElementTree(root)
-            ET.indent(tree, space="    ")
-            tree.write(xml_path)
-
         obj_xml_path = os.path.join(self.directory, "Objects.xml")
         materials_xml_path = os.path.join(self.directory, "Materials.xml")
         collisions_xml_path = os.path.join(self.directory, "Collisions.xml")
         
         export_objects(obj_xml_path)
         export_materials(materials_xml_path)
-        export_collision(collisions_xml_path)
             
         return { "FINISHED" }
 
