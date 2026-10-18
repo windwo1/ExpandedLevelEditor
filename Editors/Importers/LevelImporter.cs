@@ -31,7 +31,7 @@ using MeshMaterial = FrostySdk.Ebx.MeshMaterial;
 using MeshSet = LevelEditorPlugin.Resources.MeshSet;
 using TextureType = FrostySdk.Resources.TextureType;
 
-#if !GW1
+#if GW2
 namespace LevelEditorPlugin.Editors.Importers
 {
     public class LevelImporter
@@ -91,17 +91,18 @@ namespace LevelEditorPlugin.Editors.Importers
             public string Type { get; set; }
         }
 
-        private enum CollisionType
+        private class LightInfo
         {
-            Cube,
-            Sphere
+            public string Name { get; set; }
+            public Matrix Transform { get; set; }
+            public Vector3 Color { get; set; }
+            public float Intensity { get; set; }
         }
 
-        private class CollisionInfo
+        private class SpotLightInfo : LightInfo
         {
-            public CollisionType Type { get; set; }
-            public Matrix Transform { get; set; }
-            public BoundingBox BoundingBox { get; set; }
+            public float OuterAngle { get; set; }
+            public float InnerAngle { get; set; }
         }
 
         private LevelImportSettings importSettings;
@@ -111,7 +112,7 @@ namespace LevelEditorPlugin.Editors.Importers
         private ReferenceObject world;
 
         private List<Entities.Entity> meshEntities = new List<Entities.Entity>();
-        private List<Entities.Entity> collisionEntities = new List<Entities.Entity>();
+        private List<Entities.Entity> lightEntities = new List<Entities.Entity>();
 
         private GameDefaults gameDefaults;
 
@@ -179,7 +180,7 @@ namespace LevelEditorPlugin.Editors.Importers
                     {
                         editor.Screen.AddEntity(entity);
                     }
-                    foreach (var entity in collisionEntities)
+                    foreach (var entity in lightEntities)
                     {
                         editor.Screen.AddEntity(entity);
                     }
@@ -235,11 +236,11 @@ namespace LevelEditorPlugin.Editors.Importers
 
             string materialsXml = Path.Combine(levelPath, "Materials.xml");
             string objectsXml = Path.Combine(levelPath, "Objects.xml");
-            string collisionsXml = Path.Combine(levelPath, "Collisions.xml");
+            string lightsXml = Path.Combine(levelPath, "Lights.xml");
 
             var materials = new List<MaterialInfo>();
             var objects = new List<ObjectInfo>();
-            var collisions = new List<CollisionInfo>();
+            var lights = new List<LightInfo>();
 
             task.Update("Reading Materials.xml");
             var materialDoc = new XmlDocument();
@@ -301,7 +302,6 @@ namespace LevelEditorPlugin.Editors.Importers
                     new Vector3(obj.BoundingBox.max.x, obj.BoundingBox.max.y, obj.BoundingBox.max.z));
 
                 var transformNode = objNode.SelectSingleNode("Transform");
-
                 Vector3 location = ParseVector3Xml(transformNode.SelectSingleNode("Location"));
                 Quaternion quaternion = ParseQuaternionXml(transformNode.SelectSingleNode("Quaternion"));
                 Vector3 scale = ParseVector3Xml(transformNode.SelectSingleNode("Scale"));
@@ -311,44 +311,38 @@ namespace LevelEditorPlugin.Editors.Importers
                 objects.Add(obj);
             }
 
-            if (File.Exists(collisionsXml))
+            task.Update("Reading Lights.xml");
+            var lightsDoc = new XmlDocument();
+            lightsDoc.Load(lightsXml);
+
+            var lightsNode = lightsDoc.FirstChild;
+            foreach (XmlNode lightNode in lightsNode.ChildNodes)
             {
-                task.Update("Reading Collisions.xml");
-                var collisionsDoc = new XmlDocument();
-                collisionsDoc.Load(collisionsXml);
+                if (lightNode.NodeType == XmlNodeType.Comment)
+                    continue;
 
-                var collisionsNode = collisionsDoc.FirstChild;
-                foreach (XmlNode collisionNode in collisionsNode.ChildNodes)
+                string type = lightNode.SelectSingleNode("Type").InnerText;
+                LightInfo light = type == "SPOT" ? new SpotLightInfo() : new LightInfo();
+
+                light.Name = lightNode.SelectSingleNode("Name").InnerText;
+                light.Color = ParseVector3Xml(lightNode.SelectSingleNode("Color"));
+                light.Intensity = float.Parse(lightNode.SelectSingleNode("Intensity").InnerText);
+
+                var transformNode = lightNode.SelectSingleNode("Transform");
+                Vector3 location = ParseVector3Xml(transformNode.SelectSingleNode("Location"));
+                Quaternion quaternion = ParseQuaternionXml(transformNode.SelectSingleNode("Quaternion"));
+                Vector3 scale = ParseVector3Xml(transformNode.SelectSingleNode("Scale"));
+
+                light.Transform = FromBlenderTransform(location, quaternion, scale);
+
+                if (light is SpotLightInfo spot)
                 {
-                    if (collisionNode.NodeType == XmlNodeType.Comment)
-                        continue;
-
-                    var collision = new CollisionInfo();
-
-                    string type = collisionNode.SelectSingleNode("Type").InnerText;
-                    collision.Type = (CollisionType)Enum.Parse(typeof(CollisionType), type);
-
-                    var bboxNode = collisionNode.SelectSingleNode("BoundingBox");
-                    Vector3 min = ParseVector3Xml(bboxNode.SelectSingleNode("Min"));
-                    Vector3 max = ParseVector3Xml(bboxNode.SelectSingleNode("Max"));
-
-                    collision.BoundingBox = new BoundingBox(
-                        new Vector3(min.X, min.Z, -max.Y),
-                        new Vector3(max.X, max.Z, -min.Y));
-
-                    var transformNode = collisionNode.SelectSingleNode("Transform");
-
-                    Vector3 location = ParseVector3Xml(transformNode.SelectSingleNode("Location"));
-                    Quaternion quaternion = ParseQuaternionXml(transformNode.SelectSingleNode("Quaternion"));
-                    Vector3 scale = ParseVector3Xml(transformNode.SelectSingleNode("Scale"));
-
-                    collision.Transform = FromBlenderTransform(location, quaternion, scale);
-
-                    collisions.Add(collision);
+                    spot.OuterAngle = float.Parse(lightNode.SelectSingleNode("OuterAngle").InnerText);
+                    spot.InnerAngle = float.Parse(lightNode.SelectSingleNode("InnerAngle").InnerText);
                 }
-            }
 
-            // @todo: light importing
+                lights.Add(light);
+            }
 
             var sampleEntry = App.AssetManager.GetEbxEntry(meshSample.Name);
 
@@ -566,12 +560,68 @@ namespace LevelEditorPlugin.Editors.Importers
                     var transform = obj.Transform * offset;
 
                     entities.AddRange(editor.AddEntities(blueprint, 1, transform,
-                        addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, selectEntity: false, addToScreen: false));
+                        addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, 
+                        selectEntity: false, addToScreen: false, name: obj.Name));
                 }
             }
             finally
             {
                 BundleManager.Instance.Clear();
+            }
+
+            task.Update("Creating lights");
+
+            string lightsLayerName = "layer1_lights";
+            CreateLayer(lightsLayerName, out var lightsLayer, out var worldPartEntity);
+            var lightsLayerAsset = App.AssetManager.GetEbx(lightsLayer);
+
+            var lightsSceneLayer = new SceneLayer(worldPartEntity, lightsLayerName);
+            rootLayer.AddLayer(lightsSceneLayer);
+
+            var parent = lightsSceneLayer.Entity as WorldPartReferenceObject;
+
+            count = 0;
+            foreach (var light in lights)
+            {
+                task.Update("Importing light " + light.Name, progress: ((double)count / lights.Count) * 100.0);
+
+                Entities.Entity lightEntity = null;
+                if (light is SpotLightInfo spot)
+                {
+                    var spotObj = Utils.CreateEntityData(typeof(PbrSpotLightEntityData), lightsLayerAsset) as PbrSpotLightEntityData;
+
+                    ApplyLightDefaults(spotObj);
+                    spotObj.__Id = spot.Name;
+                    spotObj.Transform = Entities.Entity.MakeLinearTransform(spot.Transform * offset);
+                    spotObj.Color = new Vec3 { x = spot.Color.X, y = spot.Color.Y, z = spot.Color.Z };
+                    spotObj.InnerAngle = spot.InnerAngle;
+                    spotObj.OuterAngle = spot.OuterAngle;
+                    spotObj.Intensity = spot.Intensity;
+                    spotObj.IESMultiplier = 1; // default
+
+                    lightsLayerAsset.AddObject(spotObj);
+                    lightEntity = new PbrSpotLightEntity(spotObj, parent);
+                }
+                else
+                {
+                    var sphereObj = Utils.CreateEntityData(typeof(PbrSphereLightEntityData), lightsLayerAsset) as PbrSphereLightEntityData;
+
+                    ApplyLightDefaults(sphereObj);
+                    sphereObj.__Id = light.Name;
+                    sphereObj.Transform = Entities.Entity.MakeLinearTransform(light.Transform * offset);
+                    sphereObj.Color = new Vec3 { x = light.Color.X, y = light.Color.Y, z = light.Color.Z };
+                    sphereObj.Intensity = light.Intensity;
+                    sphereObj.IESMultiplier = 1; // default
+
+                    lightsLayerAsset.AddObject(sphereObj);
+                    lightEntity = new PbrSphereLightEntity(sphereObj, parent);
+                }
+
+                parent.AddEntity(lightEntity);
+                lightsSceneLayer.AddEntity(lightEntity);
+                lightEntities.Add(lightEntity);
+
+                count++;
             }
 
             MeshVariationDb.LoadModifiedVariations();
@@ -610,64 +660,6 @@ namespace LevelEditorPlugin.Editors.Importers
             var convertedRotation = conversion * Matrix.RotationQuaternion(quaternion) * Matrix.Transpose(conversion);
 
             return Matrix.Scaling(convertedScale) * convertedRotation * Matrix.Translation(convertedTrans);
-        }
-
-        private Entities.Entity AddCollision(CollisionType type, BoundingBox bbox, Matrix objTransform, EbxAsset asset, SceneLayer layer, ReferenceObject parent)
-        {
-            var localCenter = (bbox.Minimum + bbox.Maximum) * 0.5f;
-            var localHalfExtents = (bbox.Maximum - bbox.Minimum) * 0.5f;
-
-            var translation = Vector3.TransformCoordinate(localCenter, objTransform);
-            if (objTransform.Determinant() < 0)
-            {
-                objTransform = Matrix.Scaling(-1, 1, 1) * objTransform;
-            }
-
-            objTransform.Decompose(out Vector3 scale, out Quaternion rotation, out _);
-            var transform = Matrix.RotationQuaternion(rotation) * Matrix.Translation(translation);
-
-            var halfExtents = new Vector3(
-                localHalfExtents.X * Math.Abs(scale.X),
-                localHalfExtents.Y * Math.Abs(scale.Y),
-                localHalfExtents.Z * Math.Abs(scale.Z));
-
-            var rigidBodyObj = Utils.CreateEntityData(typeof(RigidBodyData), asset) as RigidBodyData;
-            ApplyRigidBodyDefaults(rigidBodyObj);
-            asset.AddObject(rigidBodyObj);
-
-            Entities.Entity collisionEntity;
-            switch (type)
-            {
-                case CollisionType.Sphere:
-                    var sphereObj = Utils.CreateEntityData(typeof(SphereCollisionEntityData), asset) as SphereCollisionEntityData;
-
-                    sphereObj.Transform = Entities.Entity.MakeLinearTransform(transform);
-                    sphereObj.Radius = Math.Max(halfExtents.X, Math.Max(halfExtents.Y, halfExtents.Z));
-                    sphereObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
-
-                    sphereObj.Enabled = true;
-                    asset.AddObject(sphereObj);
-
-                    collisionEntity = new Entities.SphereCollisionEntity(sphereObj, parent);
-                    break;
-
-                default: // cube
-                    var obbObj = Utils.CreateEntityData(typeof(OBBCollisionEntityData), asset) as OBBCollisionEntityData;
-                    obbObj.Transform = Entities.Entity.MakeLinearTransform(transform);
-                    obbObj.HalfExtents = new Vec3() { x = halfExtents.X, y = halfExtents.Y, z = halfExtents.Z };
-                    obbObj.PhysicsBodies = new List<PointerRef>() { new PointerRef(internalRef: rigidBodyObj) };
-
-                    obbObj.Enabled = true;
-                    asset.AddObject(obbObj);
-
-                    collisionEntity = new Entities.OBBCollisionEntity(obbObj, parent);
-                    break;
-            }
-
-            parent.AddEntity(collisionEntity);
-            layer.AddEntity(collisionEntity);
-            
-            return collisionEntity;
         }
 
         private void ApplyObjectBlueprintDefaults(EbxAsset blueprintAsset, ObjectBlueprint objBlueprint, EbxAssetEntry mesh, EbxAssetEntry physics)
@@ -816,6 +808,23 @@ namespace LevelEditorPlugin.Editors.Importers
             data.MotionType = RigidBodyMotionType.RigidBodyMotionType_Fixed;
             data.PartIndices = new List<uint> { 0 };
             data.IsRootController = true;
+        }
+
+        private void ApplyLightDefaults(PbrAnalyticLightEntityData data)
+        {
+            data.Enabled = true;
+            data.Temperature = 2700;
+            data.AttenuationRadius = 18;
+            data.AffectDiffuse = true;
+            data.AffectSpecular = true;
+            data.ParticleColorScale = new Vec3 { x = 1, y = 1, z = 1 };
+            data.CastShadows = QualityScalableEnabled.QualityScalableEnabled_High;
+            data.CastVolumetricShadows = QualityScalableEnabled.QualityScalableEnabled_Ultra;
+            data.ShadowDimmer = 1;
+            data.CastShadowsEnable = true;
+            data.CastVolumetricShadowsEnable = true;
+            data.RadiosityColorScale = new Vec3 { x = 8, y = 8, z = 8 };
+            data.Dimmer = 1;
         }
 
         private void ApplyMeshDefaults(MeshMaterial meshMaterial, MeshAsset meshProperties, EbxAsset asset)

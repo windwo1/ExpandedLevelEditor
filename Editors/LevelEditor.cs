@@ -303,7 +303,7 @@ namespace LevelEditorPlugin.Editors
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
                 new DividerToolbarItem(),
                 new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => new LevelExporter(RootLayer) )),
-#if !GW1
+#if GW2
                 new RegularToolbarItem("", "Import a level from exported XML", "LevelEditorPlugin/Images/Import.png", new RelayCommand((o) => new LevelImporter(ref rootLayer, this, editingWorld) )),
 #endif
                 new DividerToolbarItem(),
@@ -455,8 +455,9 @@ namespace LevelEditorPlugin.Editors
         }
 
         public List<Entities.Entity> AddEntities(EbxAssetEntry asset, int count, Matrix transform, 
-            SceneLayer addedLayer = null, Entities.Entity parentOverride = null, 
-            bool manageBundles = true, bool showTaskWindow = true, bool selectEntity = true, bool addToScreen = true)
+            SceneLayer addedLayer = null, Entities.Entity parentOverride = null, bool manageBundles = true, 
+            bool showTaskWindow = true, bool selectEntity = true, bool addToScreen = true,
+            string name = "")
         {
             int maxCount = count;
 
@@ -568,6 +569,10 @@ namespace LevelEditorPlugin.Editors
                     entity.SetTransform(transform, true);
                     entity.SetOwner(originalOwner);
 
+                    if (!string.IsNullOrEmpty(prefabName))
+                    {
+                        prefabObj.__Id = name;
+                    }
 #if !GW1
                     prefabObj.LightmapResolutionScale = 1;
 #endif

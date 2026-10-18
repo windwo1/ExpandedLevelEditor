@@ -1,10 +1,14 @@
 import os
 import bpy
 import re
+import math
 import xml.etree.cElementTree as ET
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import Operator
 from mathutils import Matrix, Vector
+
+# If 'False', all objects will be exported, if 'True', only objects that are selected will be exported.
+export_selected = False
 
 def remove_suffix(name):
     return re.sub(r'\.\d+$', '', name)
@@ -48,6 +52,12 @@ class ExportFolderOperator(Operator):
             for obj in bpy.data.objects:
                 if obj.type != "MESH":
                     continue
+
+                if obj.hide_get():
+                    continue
+
+                if export_selected and obj not in prev_selected:
+                    continue 
 
                 if len(obj.data.uv_layers) < 1:
                     continue
@@ -116,21 +126,21 @@ class ExportFolderOperator(Operator):
 
         def write_vec3(parent, vec):
             x_element = ET.SubElement(parent, "X")
-            x_element.text = str(vec.x)
+            x_element.text = str(vec[0])
             y_element = ET.SubElement(parent, "Y")
-            y_element.text = str(vec.y)
+            y_element.text = str(vec[1])
             z_element = ET.SubElement(parent, "Z")
-            z_element.text = str(vec.z)
+            z_element.text = str(vec[2])
 
         def write_quaternion(parent, q):
             x_element = ET.SubElement(parent, "X")
-            x_element.text = str(q.x)
+            x_element.text = str(q[0])
             y_element = ET.SubElement(parent, "Y")
-            y_element.text = str(q.y)
+            y_element.text = str(q[1])
             z_element = ET.SubElement(parent, "Z")
-            z_element.text = str(q.z)
+            z_element.text = str(q[2])
             w_element = ET.SubElement(parent, "W")
-            w_element.text = str(q.w)
+            w_element.text = str(q[3])
 
         def write_transform(parent, transform):
             location = transform.translation.copy()
@@ -138,11 +148,11 @@ class ExportFolderOperator(Operator):
             scale = transform.to_scale()
 
             location_element = ET.SubElement(parent, "Location")
-            write_vec3(location_element, location)
+            write_vec3(location_element, (location.x, location.y, location.z))
             rotation_element = ET.SubElement(parent, "Quaternion")
-            write_quaternion(rotation_element, rotation)
+            write_quaternion(rotation_element, (rotation.x, rotation.y, rotation.z, rotation.w))
             scale_element = ET.SubElement(parent, "Scale")
-            write_vec3(scale_element, scale)
+            write_vec3(scale_element, (scale.x, scale.y, scale.z))
 
         def write_bbox(parent, obj):
             bbox = []
@@ -227,14 +237,17 @@ class ExportFolderOperator(Operator):
                 tint = base_color.default_value
 
                 if base_color.is_linked:
-                    tint = (1, 1, 1)
+                    new_tint = (1, 1, 1)
 
                     mix = base_color.links[0].from_node
                     if mix.type == "MIX" and mix.data_type == "RGBA":
                         tint_input = mix.inputs[7]
 
                         if not tint_input.is_linked:
-                            tint = tint_input.default_value
+                            new_tint = tint_input.default_value
+
+                    if new_tint is not (1, 1, 1):
+                        tint = new_tint
 
                 textures_element = ET.SubElement(material_element, "Textures")
 
@@ -283,12 +296,52 @@ class ExportFolderOperator(Operator):
             ET.indent(tree, space="    ")
             tree.write(xml_path)
 
+        def export_lights(xml_path):
+            root = ET.Element("Lights")
+
+            for obj in bpy.data.objects:
+                if obj.type != "LIGHT":
+                    continue
+
+                light = obj.data
+
+                if light.type == "AREA":
+                    continue
+
+                light_object = bpy.data.objects[light.name]
+                
+                light_element = ET.SubElement(root, "Light")
+
+                name_element = ET.SubElement(light_element, "Name")
+                name_element.text = light_object.name
+                type_element = ET.SubElement(light_element, "Type")
+                type_element.text = light.type
+
+                transform_element = ET.SubElement(light_element, "Transform")
+                write_transform(transform_element, light_object.matrix_world)
+
+                color_element = ET.SubElement(light_element, "Color")
+                color_element.text = write_vec3(color_element, (light.color.r, light.color.g, light.color.b))
+                intensity_element = ET.SubElement(light_element, "Intensity")
+                intensity_element.text = str(light.energy)
+
+                if light.type == "SPOT":
+                    outer_angle_element = ET.SubElement(light_element, "OuterAngle")
+                    outer_angle_element.text = str(math.degrees(light.spot_size))
+                    inner_angle_element = ET.SubElement(light_element, "InnerAngle")
+                    inner_angle_element.text = str(math.degrees(light.spot_size) * (1.0 - light.spot_blend))
+                    
+            tree = ET.ElementTree(root)
+            ET.indent(tree, space="    ")
+            tree.write(xml_path)
+
         obj_xml_path = os.path.join(self.directory, "Objects.xml")
         materials_xml_path = os.path.join(self.directory, "Materials.xml")
-        collisions_xml_path = os.path.join(self.directory, "Collisions.xml")
+        lights_xml_path = os.path.join(self.directory, "Lights.xml")
         
         export_objects(obj_xml_path)
         export_materials(materials_xml_path)
+        export_lights(lights_xml_path)
             
         return { "FINISHED" }
 

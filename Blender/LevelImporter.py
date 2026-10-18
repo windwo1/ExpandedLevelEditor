@@ -1,7 +1,5 @@
 # All of this apart from material importing is made by Sprett (@sprettwashere on discord)
 
-# Level importer for PvZ GW2
-
 import bpy
 import os
 import xml.etree.ElementTree as ET
