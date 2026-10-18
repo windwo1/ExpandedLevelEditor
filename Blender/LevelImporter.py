@@ -564,10 +564,21 @@ class ImportFolderOperator(Operator):
                                     tint_g = 1
                                     tint_b = 1
 
+                                    emissive_r = 0
+                                    emissive_g = 0
+                                    emissive_b = 0
+
                                     for param in vector_params:
                                         param_name = param[0]
                                         param_type = param[1]
                                         param_value = param[2]
+
+                                        if param_name == "Emissive_Color":
+                                            rgb = param_value.split(",")
+
+                                            emissive_r = float(rgb[0])
+                                            emissive_g = float(rgb[1])
+                                            emissive_b = float(rgb[2])
 
                                         possible_tint_names = [
                                             "Tint_Color",
@@ -576,7 +587,7 @@ class ImportFolderOperator(Operator):
                                             "TintColour"
                                         ]
 
-                                        if any(tint_name in param_name for tint_name in possible_tint_names) and param_type == "ShaderParameterType_Color":
+                                        if any(tint_name in param_name for tint_name in possible_tint_names):
                                             rgb = param_value.split(",")
 
                                             tint_r = float(rgb[0])
@@ -669,6 +680,7 @@ class ImportFolderOperator(Operator):
                                     ett_seperate_node.location = (-900, -800)
 
                                     ett_emission_node = material.node_tree.nodes.new("ShaderNodeEmission")
+                                    ett_emission_node.inputs["Color"].default_value = (emissive_r, emissive_g, emissive_b, 1.0)
                                     ett_emission_node.location = (100, -375)
 
                                     ett_add_shader_node = material.node_tree.nodes.new("ShaderNodeAddShader")
@@ -686,6 +698,7 @@ class ImportFolderOperator(Operator):
 
                                     if os.path.exists(asm_path) and asm is not None:
                                         pbr_texture_node.image = load_texture(asm_path)
+                                        pbr_texture_node.image.colorspace_settings.name = "Non-Color"
 
                                         material.node_tree.links.new(pbr_texture_node.outputs["Color"], pbr_seperate_node.inputs["Color"])
                                         material.node_tree.links.new(pbr_seperate_node.outputs["Red"], multiply_ao_node.inputs[7])
@@ -697,6 +710,7 @@ class ImportFolderOperator(Operator):
 
                                     if os.path.exists(psa_path) and psa is not None:
                                         pbr_texture_node.image = load_texture(psa_path)
+                                        pbr_texture_node.image.colorspace_settings.name = "Non-Color"
 
                                         material.node_tree.links.new(pbr_texture_node.outputs["Color"], pbr_seperate_node.inputs["Color"])
                                         # the ao (ambient occlusion) in psa textures makes the material black, so it's just removed for now
@@ -725,8 +739,8 @@ class ImportFolderOperator(Operator):
 
                                     if os.path.exists(ett_path) and ett is not None:
                                         ett_texture_node.image = load_texture(ett_path)
+                                        ett_texture_node.image.colorspace_settings.name = "Non-Color"
 
-                                        material.node_tree.links.new(ett_texture_node.outputs["Color"], ett_emission_node.inputs["Color"])
                                         material.node_tree.links.new(ett_texture_node.outputs["Color"], ett_seperate_node.inputs["Color"])
                                         material.node_tree.links.new(ett_seperate_node.outputs["Red"], ett_emission_node.inputs["Strength"])
                                         material.node_tree.links.new(ett_seperate_node.outputs["Blue"], tint_multiply_node.inputs["Factor"])
