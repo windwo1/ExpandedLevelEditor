@@ -106,6 +106,11 @@ class ExportFolderOperator(Operator):
                         use_tspace=True)
 
                 if not os.path.exists(obj_path):
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bpy.ops.mesh.select_all(action="SELECT")
+                    bpy.ops.mesh.convex_hull()
+                    bpy.ops.object.mode_set(mode='OBJECT')
+
                     bpy.ops.wm.obj_export(
                         filepath=obj_path, 
                         export_selected_objects=True, 

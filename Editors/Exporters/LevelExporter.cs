@@ -51,6 +51,14 @@ namespace LevelEditorPlugin.Editors.Exporters
         private LevelExportSettings exportSettings;
         private TextureExporter textureExporter = new TextureExporter();
 
+        private Dictionary<string, bool> hasExportedMesh = new Dictionary<string, bool>();
+        private XmlWriter xmlWriterMeshes;
+        private XmlWriter xmlWriterMaterials;
+
+        private uint smiCount = 0; //Static Model Instances
+        private uint objCount = 0; //ObjectRefs
+        private uint spatialCount = 0; //SpatialObjRefs
+
         public LevelExporter(SceneLayer root)
         {
             rootLayer = root;
@@ -107,8 +115,6 @@ namespace LevelEditorPlugin.Editors.Exporters
             Directory.CreateDirectory(texturePath);
             Directory.CreateDirectory(lightingPath);
 
-            Dictionary<string, bool> hasExportedMesh = new Dictionary<string, bool>();
-
             Stopwatch timer = new Stopwatch();
             timer.Start();
 
@@ -116,33 +122,29 @@ namespace LevelEditorPlugin.Editors.Exporters
             {
                 uint totalCount = (uint)layers.Count();
 
-                uint smiCount = 0; //Static Model Instances
-                uint objCount = 0; //ObjectRefs
-                uint spatialCount = 0; //SpatialObjRefs
-
                 XmlWriterSettings settings = new XmlWriterSettings
                 {
                     Indent = true,
                     OmitXmlDeclaration = true,
                 };
-                XmlWriter xmlWriter = XmlWriter.Create(Path.Combine(meshPath, rootLayerName) + ".xml", settings);
-                XmlWriter xmlWriterMaterials = XmlWriter.Create(Path.Combine(basePath, "Materials.xml"), settings);
+                xmlWriterMeshes = XmlWriter.Create(Path.Combine(meshPath, rootLayerName) + ".xml", settings);
+                xmlWriterMaterials = XmlWriter.Create(Path.Combine(basePath, "Materials.xml"), settings);
 
-                xmlWriter.WriteStartElement("FrostbiteLevel");
-                xmlWriter.WriteElementString("Name", rootLayerName);
-                xmlWriter.WriteElementString("Game", ProfilesLibrary.ProfileName);
+                xmlWriterMeshes.WriteStartElement("FrostbiteLevel");
+                xmlWriterMeshes.WriteElementString("Name", rootLayerName);
+                xmlWriterMeshes.WriteElementString("Game", ProfilesLibrary.ProfileName);
 
-                xmlWriter.WriteStartElement("Settings");
+                xmlWriterMeshes.WriteStartElement("Settings");
 
-                xmlWriter.WriteElementString("LODIndex", exportSettings.LODIndex.ToString());
-                xmlWriter.WriteElementString("ExportPrefabs", exportSettings.ExportPrefabs.ToString());
-                xmlWriter.WriteElementString("UseAlpha", exportSettings.UseAlpha.ToString());
+                xmlWriterMeshes.WriteElementString("LODIndex", exportSettings.LODIndex.ToString());
+                xmlWriterMeshes.WriteElementString("ExportPrefabs", exportSettings.ExportPrefabs.ToString());
+                xmlWriterMeshes.WriteElementString("UseAlpha", exportSettings.UseAlpha.ToString());
 #if !GW1
-                xmlWriter.WriteElementString("UseEmission", exportSettings.UseEmission.ToString());
+                xmlWriterMeshes.WriteElementString("UseEmission", exportSettings.UseEmission.ToString());
 #endif
-                xmlWriter.WriteElementString("TerrainDecimation", exportSettings.TerrainDecimation.ToString());
+                xmlWriterMeshes.WriteElementString("TerrainDecimation", exportSettings.TerrainDecimation.ToString());
 
-                xmlWriter.WriteEndElement();
+                xmlWriterMeshes.WriteEndElement();
 
                 xmlWriterMaterials.WriteStartElement("Materials");
 
@@ -152,27 +154,25 @@ namespace LevelEditorPlugin.Editors.Exporters
                 {
                     if (!(item.LayerName == "static_instances"))
                     {
-                        xmlWriter.WriteStartElement("WorldLayer");
-                        xmlWriter.WriteElementString("Name", item.LayerName);
+                        xmlWriterMeshes.WriteStartElement("WorldLayer");
+                        xmlWriterMeshes.WriteElementString("Name", item.LayerName);
 
                         List<Entities.Entity> entities = new List<Entities.Entity>();
                         item.CollectEntities(entities);
 
-                        ExportObjects(entities.Cast<object>().ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
-                                ref smiCount, ref objCount, ref spatialCount);
+                        ExportObjects(entities.Cast<object>().ToList(), task, exporter);
 
-                        xmlWriter.WriteEndElement();
+                        xmlWriterMeshes.WriteEndElement();
                     }
                 }
 
                 // export any objects in the entity list for spatial prefabs or object blueprint assets
-                ExportObjects(entityList.Cast<object>().ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
-                                ref smiCount, ref objCount, ref spatialCount);
+                ExportObjects(entityList.Cast<object>().ToList(), task, exporter);
 
-                xmlWriter.WriteEndElement();
+                xmlWriterMeshes.WriteEndElement();
                 xmlWriterMaterials.WriteEndElement();
 
-                xmlWriter.Dispose();
+                xmlWriterMeshes.Dispose();
                 xmlWriterMaterials.Dispose();
 
                 foreach (Entities.Entity entity in entityList)
@@ -219,7 +219,7 @@ namespace LevelEditorPlugin.Editors.Exporters
             });
         }
 
-        private void ExportObjects(List<object> objects, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh, ref uint smiCount, ref uint objCount, ref uint spatialCount, LinearTransform offset = null)
+        private void ExportObjects(List<object> objects, FrostyTaskWindow task, FBXExporter exporter, LinearTransform offset = null)
         {
             string basePath = Path.Combine(Environment.CurrentDirectory, "Levels", rootLayer.LayerName);
 
@@ -227,12 +227,12 @@ namespace LevelEditorPlugin.Editors.Exporters
             string texturePath = Path.Combine(basePath, "Textures");
             string lightingPath = Path.Combine(basePath, "Lights");
 
-            xmlWriter.WriteStartElement("StaticModelInstances");
+            xmlWriterMeshes.WriteStartElement("StaticModelInstances");
 
             int count = 0;
             foreach (object entity in objects.Where(e => e is StaticModelGroupElementEntity || e is StaticModelGroupElementEntityData))
             {
-                xmlWriter.WriteStartElement("StaticModelGroupElementEntity");
+                xmlWriterMeshes.WriteStartElement("StaticModelGroupElementEntity");
 
                 StaticModelGroupElementEntityData smiData = (entity as StaticModelGroupElementEntity)?.Data ?? entity as StaticModelGroupElementEntityData;
 
@@ -288,17 +288,17 @@ namespace LevelEditorPlugin.Editors.Exporters
                         );
                 }
 
-                xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
-                WriteTransformToXML(xmlWriter, transform);
-                xmlWriter.WriteEndElement();
+                xmlWriterMeshes.WriteElementString("Blueprint", objBlueprint.Name);
+                WriteTransformToXML(xmlWriterMeshes, transform);
+                xmlWriterMeshes.WriteEndElement();
 
                 smiCount++;
                 count++;
             }
 
-            xmlWriter.WriteEndElement();
-            xmlWriter.WriteElementString("StaticInstanceCount", count.ToString());
-            xmlWriter.WriteStartElement("Objects");
+            xmlWriterMeshes.WriteEndElement();
+            xmlWriterMeshes.WriteElementString("StaticInstanceCount", count.ToString());
+            xmlWriterMeshes.WriteStartElement("Objects");
 
             int instanceCount = 0;
 
@@ -327,7 +327,7 @@ namespace LevelEditorPlugin.Editors.Exporters
                             );
                     }
 
-                    if (ExportObjectBlueprint(objBlueprint, blueprintTransform, meshPath, texturePath, xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh))
+                    if (ExportObjectBlueprint(objBlueprint, blueprintTransform, meshPath, texturePath, task, exporter))
                     {
                         objCount++;
                         instanceCount++;
@@ -355,7 +355,7 @@ namespace LevelEditorPlugin.Editors.Exporters
 
                     if (objBlueprint.Type == "ObjectBlueprint")
                     {
-                        if (ExportObjectBlueprint(objBlueprint, blueprintTransform, meshPath, texturePath, xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh))
+                        if (ExportObjectBlueprint(objBlueprint, blueprintTransform, meshPath, texturePath, task, exporter))
                         {
                             objCount++;
                             instanceCount++;
@@ -367,19 +367,18 @@ namespace LevelEditorPlugin.Editors.Exporters
                     if (objBlueprint.Type != "SpatialPrefabBlueprint" || !exportSettings.ExportPrefabs)
                         continue;
 
-                    xmlWriter.WriteStartElement("SpatialPrefabInstance");
+                    xmlWriterMeshes.WriteStartElement("SpatialPrefabInstance");
 
                     EbxAsset asset = App.AssetManager.GetEbx(objBlueprint);
                     dynamic rootObject = asset.RootObject;
 
                     task.Update("SpatialPrefab " + objBlueprint.Name);
 
-                    xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
-                    WriteTransformToXML(xmlWriter, blueprintTransform);
-                    xmlWriter.WriteEndElement();
+                    xmlWriterMeshes.WriteElementString("Blueprint", objBlueprint.Name);
+                    WriteTransformToXML(xmlWriterMeshes, blueprintTransform);
+                    xmlWriterMeshes.WriteEndElement();
 
-                    ExportObjects(asset.Objects.ToList(), xmlWriter, xmlWriterMaterials, task, exporter, hasExportedMesh,
-                        ref smiCount, ref objCount, ref spatialCount, blueprintTransform);
+                    ExportObjects(asset.Objects.ToList(), task, exporter, blueprintTransform);
 
                     // also export any lights in the prefab
                     foreach (var obj in asset.Objects)
@@ -409,11 +408,11 @@ namespace LevelEditorPlugin.Editors.Exporters
                 }
             }
 
-            xmlWriter.WriteEndElement();
-            xmlWriter.WriteElementString("ObjectCount", instanceCount.ToString());
+            xmlWriterMeshes.WriteEndElement();
+            xmlWriterMeshes.WriteElementString("ObjectCount", instanceCount.ToString());
         }
 
-        private bool ExportObjectBlueprint(EbxAssetEntry objBlueprint, LinearTransform transform, string meshPath, string texturePath, XmlWriter xmlWriter, XmlWriter xmlWriterMaterials, FrostyTaskWindow task, FBXExporter exporter, Dictionary<string, bool> hasExportedMesh)
+        private bool ExportObjectBlueprint(EbxAssetEntry objBlueprint, LinearTransform transform, string meshPath, string texturePath, FrostyTaskWindow task, FBXExporter exporter)
         {
             if (objBlueprint == null)
                 return false;
@@ -434,9 +433,9 @@ namespace LevelEditorPlugin.Editors.Exporters
 
             task.Update("Object " + objMeshAsset.DisplayName);
 
-            xmlWriter.WriteStartElement("ObjectInstance");
-            xmlWriter.WriteElementString("Blueprint", objBlueprint.Name);
-            WriteTransformToXML(xmlWriter, transform);
+            xmlWriterMeshes.WriteStartElement("ObjectInstance");
+            xmlWriterMeshes.WriteElementString("Blueprint", objBlueprint.Name);
+            WriteTransformToXML(xmlWriterMeshes, transform);
 
             string path = Path.Combine(meshPath, objBlueprint.DisplayName + "_mesh.fbx");
 
@@ -460,7 +459,7 @@ namespace LevelEditorPlugin.Editors.Exporters
                 hasExportedMesh[path] = true;
             }
 
-            xmlWriter.WriteEndElement();
+            xmlWriterMeshes.WriteEndElement();
 
             return true;
         }

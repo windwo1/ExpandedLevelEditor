@@ -622,6 +622,7 @@ class ImportFolderOperator(Operator):
                                     multiply_ao_node.data_type = "RGBA"
                                     multiply_ao_node.blend_type = "MULTIPLY"
                                     multiply_ao_node.inputs["Factor"].default_value = 1.0
+                                    multiply_ao_node.inputs[7].default_value = (1.0, 1.0, 1.0, 1.0)
                                     multiply_ao_node.location = (-350, 500)
 
                                     pbr_seperate_node = material.node_tree.nodes.new("ShaderNodeSeparateColor")

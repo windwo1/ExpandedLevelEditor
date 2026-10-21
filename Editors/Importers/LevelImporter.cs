@@ -1095,7 +1095,7 @@ namespace LevelEditorPlugin.Editors.Importers
         }
 
         // Credit to Magix for this .obj converting!:
-        // https://github.com/MagixGames/FrostyHavokPlugin/blob/master/HavokFb/Program.cs
+        // https://github.com/MagixGames/FrostyHavokPlugin/blob/master/HavokFb/Program.cs#L200
         private PolytopeShape ImportCollision(string objPath)
         {
             var shape = new PolytopeShape();
