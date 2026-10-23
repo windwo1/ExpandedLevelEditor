@@ -1,33 +1,15 @@
-﻿using Frosty.Controls;
-using Frosty.Core;
+﻿using Frosty.Core;
 using Frosty.Core.Controls;
 using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
-using FrostySdk;
-using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
-using FrostySdk.IO;
-using FrostySdk.Resources;
-using LevelEditorPlugin.Data;
 using LevelEditorPlugin.Editors.Exporters;
-using LevelEditorPlugin.Editors.Importers;
 using LevelEditorPlugin.Entities;
-using LevelEditorPlugin.Layers;
-using LevelEditorPlugin.Managers;
-using LevelEditorPlugin.Render;
 using LevelEditorPlugin.Screens;
-using MeshSetPlugin;
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Xml;
-using TexturePlugin;
 
 namespace LevelEditorPlugin.Editors
 {
@@ -104,9 +86,6 @@ namespace LevelEditorPlugin.Editors
                 new ToggleToolbarItem("", "Show/Hide thumbnail safezone", "LevelEditorPlugin/Images/ThumbnailSafezone.png", false, new RelayCommand((o) => { ShowThumbnailSafeZone(thumbnailBorder.Visibility == Visibility.Collapsed, viewport); })),
                 new DividerToolbarItem(),
                 new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => new LevelExporter(RootLayer))),
-#if GW2
-                new RegularToolbarItem("", "Import a level from exported XML", "LevelEditorPlugin/Images/Import.png", new RelayCommand((o) => new LevelImporter(ref rootLayer, this, editingWorld, world) ))
-#endif
             };
         }
 

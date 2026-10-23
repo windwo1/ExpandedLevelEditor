@@ -22,10 +22,6 @@ namespace LevelEditorPlugin.Resources
             public virtual void Serialize(NativeReader reader, HkxHeader header)
             {
             }
-
-            public virtual void Write(NativeWriter writer, HkxHeader header)
-            {
-            }
         }
 
         public class hkpStaticCompoundShape : hkBaseClass
@@ -198,131 +194,21 @@ namespace LevelEditorPlugin.Resources
 
         public class hknpShape : hkBaseClass
         {
-            public ushort Flags;
-            public byte NumShapeKeyBits;
-            public byte DispatchType;
-            public float ConvexRadius;
-            public ulong UserData;
+            public int unknown;
             public hkRefCountedProperties Properties;
 
             public override void Serialize(NativeReader reader, HkxHeader header)
             {
-                reader.Position += 16;
-                Flags = reader.ReadUShort();
-                NumShapeKeyBits = reader.ReadByte();
-                DispatchType = reader.ReadByte();
-                ConvexRadius = reader.ReadFloat();
-                UserData = reader.ReadULong();
+                reader.Position += 0x11;
+                unknown = reader.ReadByte();
+                reader.Position += 0x0E;
                 Properties = header.ReadObject(reader) as hkRefCountedProperties;
-            }
-
-            public override void Write(NativeWriter writer, HkxHeader header)
-            {
-                writer.Position += 16;
-                writer.Write(Flags);
-                writer.Write(NumShapeKeyBits);
-                writer.Write(DispatchType);
-                writer.Write(ConvexRadius);
-                writer.Write(UserData);
-                writer.Position += header.Bits == 64 ? 8 : 4;
-            }
-        }
-
-        public class hknpCompositeShape : hknpShape
-        {
-            public uint SecondaryKeyMask;
-            public uint SecondaryKeyBits;
-            public List<ushort> PrimaryKeyToIndex = new List<ushort>();
-            public List<ushort> ValueAndSecondaryKeys = new List<ushort>();
-            public uint ShapeTagCodecInfo;
-
-            public override void Serialize(NativeReader reader, HkxHeader header)
-            {
-                base.Serialize(reader, header);
-
-                reader.Position += 8;
-
-                SecondaryKeyMask = reader.ReadUInt();
-                SecondaryKeyBits = reader.ReadUInt();
-
-                long offsetPrimaryKeyToIndex = header.ReadArray(reader, out int numPrimaryKeyToIndex);
-                long offsetValueAndSecondaryKeys = header.ReadArray(reader, out int numValueAndSecondaryKeys);
-
-                ShapeTagCodecInfo = reader.ReadUInt();
-
-                long position = reader.Position;
-
-                if (offsetPrimaryKeyToIndex != -1)
-                {
-                    reader.Position = offsetPrimaryKeyToIndex;
-                    for (int i = 0; i < numPrimaryKeyToIndex; i++)
-                    {
-                        PrimaryKeyToIndex.Add(reader.ReadUShort());
-                    }
-                }
-
-                if (offsetValueAndSecondaryKeys != -1)
-                {
-                    reader.Position = offsetValueAndSecondaryKeys;
-                    for (int i = 0; i < numValueAndSecondaryKeys; i++)
-                    {
-                        ValueAndSecondaryKeys.Add(reader.ReadUShort());
-                    }
-                }
-
-                reader.Position = position;
-                reader.Position += 4;
-            }
-
-            public override void Write(NativeWriter writer, HkxHeader header)
-            {
-                base.Write(writer, header);
-
-                writer.Write(SecondaryKeyMask);
-                writer.Write(SecondaryKeyBits);
-
-                long position = writer.Position;
-
-                header.WriteArray(writer, PrimaryKeyToIndex.Count, w =>
-                {
-                    foreach (ushort value in PrimaryKeyToIndex)
-                    {
-                        w.Write(value);
-                    }
-                });
-
-                header.WriteArray(writer, ValueAndSecondaryKeys.Count, w =>
-                {
-                    foreach (ushort value in ValueAndSecondaryKeys)
-                    {
-                        w.Write(value);
-                    }
-                });
-
-                writer.Write(ShapeTagCodecInfo);
-                writer.Position += 4;
             }
         }
 
         public class hknpCapsuleShape : hknpShape
         {
         }
-
-        public class PolytopeShape
-        {
-            public List<Vector4> Vertices { get; set; } = new List<Vector4>();
-            public List<Vector4> Planes { get; set; } = new List<Vector4>();
-            public List<PolytopeShapeFace> Faces { get; set; } = new List<PolytopeShapeFace>();
-            public List<byte> Indices { get; set; } = new List<byte>();
-        }
-
-        public class PolytopeShapeFace
-        {
-            public byte MinHalfAngle { get; set; }
-            public byte NumIndices { get; set; }
-            public ushort FirstIndex { get; set; }
-        }
-
         public class hknpConvexPolytopeShape : hknpShape
         {
             public List<Vector4> Vertices = new List<Vector4>();
@@ -330,24 +216,12 @@ namespace LevelEditorPlugin.Resources
             public List<byte[]> Faces = new List<byte[]>();
             public List<byte> Indices = new List<byte>();
 
-            public long VerticesHeaderOffset;
-            public long PlanesHeaderOffset;
-            public long FacesHeaderOffset;
-            public long IndicesHeaderOffset;
-
-            public long VerticesDataOffset;
-            public long PlanesDataOffset;
-            public long FacesDataOffset;
-            public long IndicesDataOffset;
-
             public override void Serialize(NativeReader reader, HkxHeader header)
             {
                 base.Serialize(reader, header);
                 reader.Position += 0x08;
 
-                VerticesHeaderOffset = reader.Position;
                 int numVertices = header.BeginRelArrayRead(reader);
-                VerticesDataOffset = reader.Position;
                 for (int i = 0; i < numVertices; i++)
                 {
                     Vertices.Add(new Vector4(
@@ -361,9 +235,7 @@ namespace LevelEditorPlugin.Resources
 
                 reader.Position += 0x0c;
 
-                PlanesHeaderOffset = reader.Position;
                 int numPlanes = header.BeginRelArrayRead(reader);
-                PlanesDataOffset = reader.Position;
                 for (int i = 0; i < numPlanes; i++)
                 {
                     Planes.Add(new Vector4(
@@ -375,9 +247,7 @@ namespace LevelEditorPlugin.Resources
                 }
                 header.EndRelArrayRead(reader);
 
-                FacesHeaderOffset = reader.Position;
                 int numFaces = header.BeginRelArrayRead(reader);
-                FacesDataOffset = reader.Position;
                 for (int i = 0; i < numFaces; i++)
                 {
                     Faces.Add(new byte[]
@@ -390,403 +260,22 @@ namespace LevelEditorPlugin.Resources
                 }
                 header.EndRelArrayRead(reader);
 
-                IndicesHeaderOffset = reader.Position;
                 int numIndices = header.BeginRelArrayRead(reader);
-                IndicesDataOffset = reader.Position;
                 for (int i = 0; i < numIndices; i++)
                 {
                     Indices.Add(reader.ReadByte());
                 }
                 header.EndRelArrayRead(reader);
             }
-
-            public PolytopeShape GetPolytopeShape()
-            {
-                PolytopeShape shape = new PolytopeShape();
-                shape.Vertices.AddRange(Vertices);
-                shape.Planes.AddRange(Planes);
-                foreach (byte[] face in Faces)
-                {
-                    shape.Faces.Add(new PolytopeShapeFace
-                    {
-                        MinHalfAngle = face[0],
-                        NumIndices = face[1],
-                        FirstIndex = BitConverter.ToUInt16(face, 2)
-                    });
-                }
-                shape.Indices.AddRange(Indices);
-                return shape;
-            }
-
-            public void Write(NativeWriter writer, PolytopeShape shape)
-            {
-                writer.Position = VerticesHeaderOffset;
-                writer.Write((ushort)shape.Vertices.Count);
-                writer.Position = VerticesDataOffset;
-                for (int i = 0; i < shape.Vertices.Count; i++)
-                {
-                    writer.Write(shape.Vertices[i].X);
-                    writer.Write(shape.Vertices[i].Y);
-                    writer.Write(shape.Vertices[i].Z);
-                    writer.Write(shape.Vertices[i].W);
-                }
-
-                writer.Position = PlanesHeaderOffset;
-                writer.Write((ushort)shape.Planes.Count);
-                writer.Position = PlanesDataOffset;
-                for (int i = 0; i < shape.Planes.Count; i++)
-                {
-                    writer.Write(shape.Planes[i].X);
-                    writer.Write(shape.Planes[i].Y);
-                    writer.Write(shape.Planes[i].Z);
-                    writer.Write(shape.Planes[i].W);
-                }
-
-                writer.Position = FacesHeaderOffset;
-                writer.Write((ushort)shape.Faces.Count);
-                writer.Position = FacesDataOffset;
-                for (int i = 0; i < shape.Faces.Count; i++)
-                {
-                    writer.Write(shape.Faces[i].MinHalfAngle);
-                    writer.Write(shape.Faces[i].NumIndices);
-                    writer.Write(shape.Faces[i].FirstIndex);
-                }
-
-                writer.Position = IndicesHeaderOffset;
-                writer.Write((ushort)shape.Indices.Count);
-                writer.Position = IndicesDataOffset;
-                for (int i = 0; i < shape.Indices.Count; i++)
-                {
-                    writer.Write(shape.Indices[i]);
-                }
-            }
-
-            public bool IsShapeValid(PolytopeShape shape)
-            {
-                if (shape == null || shape.Vertices == null || shape.Planes == null || shape.Faces == null || shape.Indices == null)
-                    return false;
-
-                foreach (var face in shape.Faces)
-                {
-                    if (face == null)
-                        return false;
-                }
-
-                return true;
-            }
-
-            public bool ShapeFits(PolytopeShape shape)
-            {
-                if (shape.Vertices.Count > Vertices.Count ||
-                    shape.Planes.Count > Planes.Count ||
-                    shape.Faces.Count > Faces.Count ||
-                    shape.Indices.Count > Indices.Count)
-                {
-                    return false;
-                }
-
-                return true;
-            }
         }
         public class hknpSphereShape : hknpShape
         {
         }
-
-        public class TreeNode
-        {
-            public byte[] XYZ = new byte[3];
-            public byte Data;
-        }
-
-        public class hkcdStaticMeshTreeBaseSection : hkBaseClass
-        {
-            public List<TreeNode> Nodes = new List<TreeNode>();
-            public Vector4 MinAABB;
-            public Vector4 MaxAABB;
-            public float[] CodecParams = new float[6];
-            public uint FirstPackedVertex;
-            public uint SharedVertices;
-            public uint Primitives;
-            public uint DataRuns;
-            public byte NumPackedVertices;
-            public byte NumSharedIndicies;
-            public ushort LeafIndex;
-            public byte Page;
-            public byte Flags;
-            public byte LayerData;
-            public byte UnusedData;
-
-            public override void Serialize(NativeReader reader, HkxHeader header)
-            {
-                long offsetNodes = header.ReadArray(reader, out int numNodes);
-                MinAABB = reader.ReadVector4();
-                MaxAABB = reader.ReadVector4();
-                for (int i = 0; i < 6; i++)
-                {
-                    CodecParams[i] = reader.ReadFloat();
-                }
-                FirstPackedVertex = reader.ReadUInt();
-                SharedVertices = reader.ReadUInt();
-                Primitives = reader.ReadUInt();
-                DataRuns = reader.ReadUInt();
-                NumPackedVertices = reader.ReadByte();
-                NumSharedIndicies = reader.ReadByte();
-                LeafIndex = reader.ReadUShort();
-                Page = reader.ReadByte();
-                Flags = reader.ReadByte();
-                LayerData = reader.ReadByte();
-                UnusedData = reader.ReadByte();
-
-                if (numNodes != -1)
-                {
-                    long position = reader.Position;
-                    reader.Position = offsetNodes;
-                    for (int i = 0; i < numNodes; i++)
-                    {
-                        var node = new TreeNode();
-                        node.XYZ = reader.ReadBytes(3);
-                        node.Data = reader.ReadByte();
-                        Nodes.Add(node);
-                    }
-
-                    reader.Position = position;
-                }
-            }
-
-            public override void Write(NativeWriter writer, HkxHeader header)
-            {
-                header.WriteArray(writer, Nodes.Count, w =>
-                {
-                    foreach (var value in Nodes)
-                    {
-                        w.Write(value.XYZ);
-                        w.Write(value.Data);
-                    }
-                });
-
-                writer.Write(MinAABB);
-                writer.Write(MaxAABB);
-                foreach (float value in CodecParams)
-                {
-                    writer.Write(value);
-                }
-                writer.Write(FirstPackedVertex);
-                writer.Write(SharedVertices);
-                writer.Write(Primitives);
-                writer.Write(DataRuns);
-                writer.Write(NumPackedVertices);
-                writer.Write(NumSharedIndicies);
-                writer.Write(LeafIndex);
-                writer.Write(Page);
-                writer.Write(Flags);
-                writer.Write(LayerData);
-                writer.Write(UnusedData);
-            }
-        }
-
-        public class hknpCompressedMeshShapeTreeDataRun : hkBaseClass
-        {
-            public ushort Value;
-            public byte Index;
-            public byte Count;
-
-            public override void Serialize(NativeReader reader, HkxHeader header)
-            {
-                Value = reader.ReadUShort();
-                Index = reader.ReadByte();
-                Count = reader.ReadByte();
-            }
-
-            public override void Write(NativeWriter writer, HkxHeader header)
-            {
-                writer.Write(Value);
-                writer.Write(Index);
-                writer.Write(Count);
-            }
-        }
-
         public class hknpCompressedMeshShapeData : hkBaseClass
         {
-            public List<TreeNode> Nodes = new List<TreeNode>();
-            public Vector4 MinAABB;
-            public Vector4 MaxAABB;
-            public int NumPrimitiveKeys;
-            public int BitsPerKey;
-            public uint MaxKeyValue;
-            public List<hkcdStaticMeshTreeBaseSection> Sections = new List<hkcdStaticMeshTreeBaseSection>();
-            public List<byte[]> Primitives = new List<byte[]>();
-            public List<ushort> SharedVerticesIndex = new List<ushort>();
-            public List<uint> PackedVertices = new List<uint>();
-            public List<ulong> SharedVertices = new List<ulong>();
-            public List<hknpCompressedMeshShapeTreeDataRun> PrimitiveDataRuns = new List<hknpCompressedMeshShapeTreeDataRun>();
-
-            public override void Serialize(NativeReader reader, HkxHeader header)
-            {
-                reader.Position += 16;
-
-                long offsetNodes = header.ReadArray(reader, out int numNodes);
-                MinAABB = reader.ReadVector4();
-                MaxAABB = reader.ReadVector4();
-                NumPrimitiveKeys = reader.ReadInt();
-                BitsPerKey = reader.ReadInt();
-                MaxKeyValue = reader.ReadUInt();
-
-                reader.Position += 4;
-
-                long offsetSections = header.ReadArray(reader, out int numSections);
-                long offsetPrimitives = header.ReadArray(reader, out int numPrimitives);
-                long offsetSharedVerticesIndex = header.ReadArray(reader, out int numSharedVerticesIndex);
-                long offsetPackedVertices = header.ReadArray(reader, out int numPackedVertices);
-                long offsetSharedVertices = header.ReadArray(reader, out int numSharedVertices);
-                long offsetPrimitiveDataRuns = header.ReadArray(reader, out int numPrimitiveDataRuns);
-
-                if (numNodes != -1)
-                {
-                    reader.Position = offsetNodes;
-                    for (int i = 0; i < numNodes; i++)
-                    {
-                        var node = new TreeNode();
-                        node.XYZ = reader.ReadBytes(3);
-                        node.Data = reader.ReadByte();
-                        Nodes.Add(node);
-                    }
-                }
-
-                if (offsetSections != -1)
-                {
-                    reader.Position = offsetSections;
-                    for (int i = 0; i < numSections; i++)
-                    {
-                        var obj = new hkcdStaticMeshTreeBaseSection();
-                        obj.Serialize(reader, header);
-                        Sections.Add(obj);
-                    }
-                }
-
-                if (offsetPrimitives != -1)
-                {
-                    reader.Position = offsetPrimitives;
-                    for (int i = 0; i < numPrimitives; i++)
-                    {
-                        Primitives.Add(reader.ReadBytes(4));
-                    }
-                }
-
-                if (offsetSharedVerticesIndex != -1)
-                {
-                    reader.Position = offsetSharedVerticesIndex;
-                    for (int i = 0; i < numSharedVerticesIndex; i++)
-                    {
-                        SharedVerticesIndex.Add(reader.ReadUShort());
-                    }
-                }
-
-                if (offsetPackedVertices != -1)
-                {
-                    reader.Position = offsetPackedVertices;
-                    for (int i = 0; i < numPackedVertices; i++)
-                    {
-                        PackedVertices.Add(reader.ReadUInt());
-                    }
-                }
-
-                if (offsetSharedVertices != -1)
-                {
-                    reader.Position = offsetSharedVertices;
-                    for (int i = 0; i < numSharedVertices; i++)
-                    {
-                        SharedVertices.Add(reader.ReadULong());
-                    }
-                }
-
-                if (offsetPrimitiveDataRuns != -1)
-                {
-                    reader.Position = offsetPrimitiveDataRuns;
-                    for (int i = 0; i < numPrimitiveDataRuns; i++)
-                    {
-                        var obj = new hknpCompressedMeshShapeTreeDataRun();
-                        obj.Serialize(reader, header);
-                        PrimitiveDataRuns.Add(obj);
-                    }
-                }
-            }
-
-            public override void Write(NativeWriter writer, HkxHeader header)
-            {
-                writer.Position += 16;
-
-                header.WriteArray(writer, Nodes.Count, w =>
-                {
-                    foreach (var value in Nodes)
-                    {
-                        w.Write(value.XYZ);
-                        w.Write(value.Data);
-                    }
-                });
-
-                writer.Write(MinAABB);
-                writer.Write(MaxAABB);
-                writer.Write(NumPrimitiveKeys);
-                writer.Write(BitsPerKey);
-                writer.Write(MaxKeyValue);
-
-                writer.Position += 4;
-
-                header.WriteArray(writer, Sections.Count, w =>
-                {
-                    foreach (var value in Sections)
-                    {
-                        value.Write(w, header);
-                    }
-                });
-                header.WriteArray(writer, Primitives.Count, w =>
-                {
-                    foreach (byte[] value in Primitives)
-                    {
-                        w.Write(value);
-                    }
-                });
-                header.WriteArray(writer, SharedVerticesIndex.Count, w =>
-                {
-                    foreach (ushort value in SharedVerticesIndex)
-                    {
-                        w.Write(value);
-                    }
-                });
-                header.WriteArray(writer, PackedVertices.Count, w =>
-                {
-                    foreach (uint value in PackedVertices)
-                    {
-                        w.Write(value);
-                    }
-                });
-                header.WriteArray(writer, SharedVertices.Count, w =>
-                {
-                    foreach (ulong value in SharedVertices)
-                    {
-                        w.Write(value);
-                    }
-                });
-                header.WriteArray(writer, PrimitiveDataRuns.Count, w =>
-                {
-                    foreach (var value in PrimitiveDataRuns)
-                    {
-                        value.Write(w, header);
-                    }
-                });
-            }
         }
-        public class hknpCompressedMeshShape : hknpCompositeShape
+        public class hknpCompressedMeshShape : hknpShape
         {
-            public hknpCompressedMeshShapeData Data;
-
-            public override void Serialize(NativeReader reader, HkxHeader header)
-            {
-                base.Serialize(reader, header);
-                Data = header.ReadObject(reader) as hknpCompressedMeshShapeData;
-            }
-
-            // no write method because Data already points to the object
         }
 
         public class hknpStaticCompoundShape : hknpShape
@@ -1028,13 +517,6 @@ namespace LevelEditorPlugin.Resources
 
     public class HkxHeader
     {
-        public struct ArrayData
-        {
-            public long Offset;
-            public int Count;
-            public Action<NativeWriter> Write;
-        }
-
         public uint StartOffset;
         public uint Magic1;
         public uint Magic2;
@@ -1053,8 +535,6 @@ namespace LevelEditorPlugin.Resources
 
         public Dictionary<long, long> ArrayOffsets = new Dictionary<long, long>();
         public Dictionary<long, Hkx.hkBaseClass> ObjectOffsets = new Dictionary<long, Hkx.hkBaseClass>();
-
-        public List<ArrayData> ModifiedArrays = new List<ArrayData>();
 
         private List<long> stackOffsets = new List<long>();
 
@@ -1105,42 +585,12 @@ namespace LevelEditorPlugin.Resources
 
         public long ReadArray(NativeReader reader)
         {
-            long key = reader.Position;
+            long arrayOffset = ArrayOffsets[reader.Position];
             reader.ReadInt();
             if (Bits == 64)
                 reader.ReadInt();
 
-            if (!ArrayOffsets.ContainsKey(key))
-                return -1;
-
-            return ArrayOffsets[key];
-        }
-
-        public long ReadArray(NativeReader reader, out int count)
-        {
-            long offset = ReadArray(reader);
-            count = reader.ReadInt();
-            reader.ReadInt();
-            return offset;
-        }
-
-        public void WriteArray(NativeWriter writer, int count, Action<NativeWriter> write)
-        {
-            long key = writer.Position;
-            writer.Position += Bits == 64 ? 8 : 4;
-
-            writer.Write(count);
-            writer.Position += 4;
-
-            if (ArrayOffsets.ContainsKey(key))
-            {
-                ModifiedArrays.Add(new ArrayData
-                {
-                    Offset = key,
-                    Count = count,
-                    Write = write
-                });
-            }
+            return arrayOffset;
         }
 
         public int BeginRelArrayRead(NativeReader reader)
@@ -1187,11 +637,8 @@ namespace LevelEditorPlugin.Resources
         public int LocalFixupSize;
         public int GlobalFixupSize;
         public int AbsoluteDataStart;
-        public int SectionIntsPos;
 
-        public int VirtualFixupsOffset;
-        public int exportsOffset;
-        public int importsOffset;
+        int virtualFixupsOffset;
         public int endOffset;
 
         Dictionary<ulong, HkxClassDescriptor> Classes = new Dictionary<ulong, HkxClassDescriptor>();
@@ -1226,13 +673,10 @@ namespace LevelEditorPlugin.Resources
                 }
                 else if (BlockType.Contains("__data__"))
                 {
-                    SectionIntsPos = (int)reader.Position;
                     AbsoluteDataStart = reader.ReadInt();
                     LocalFixupSize = reader.ReadInt();
                     GlobalFixupSize = reader.ReadInt();
-                    VirtualFixupsOffset = reader.ReadInt();
-                    exportsOffset = reader.ReadInt();
-                    importsOffset = reader.ReadInt();
+                    virtualFixupsOffset = reader.ReadInt();
                     endOffset = reader.ReadInt();
                     CurrentSection++;
                 }
@@ -1248,7 +692,7 @@ namespace LevelEditorPlugin.Resources
                 Classes.Add(ClassOffset + 5, Class);
             }
 
-            reader.Position = Header.StartOffset + AbsoluteDataStart + VirtualFixupsOffset;
+            reader.Position = Header.StartOffset + AbsoluteDataStart + virtualFixupsOffset;
 
             int TotalSize = (int)Header.StartOffset + AbsoluteDataStart + endOffset;
 
@@ -1287,19 +731,6 @@ namespace LevelEditorPlugin.Resources
             }
         }
 
-        public void WriteObjects(NativeWriter writer)
-        {
-            foreach (long offset in objList.Keys)
-            {
-                Hkx.hkBaseClass value = objList[offset];
-                if (value != null)
-                {
-                    writer.Position = offset;
-                    value.Write(writer, Header);
-                }
-            }
-        }
-
         public Hkx.hkBaseClass GetObject(long offset)
         {
             if (!objList.ContainsKey(offset))
@@ -1310,9 +741,6 @@ namespace LevelEditorPlugin.Resources
 
     public class HavokPhysicsData : Resource
     {
-        public HkxInstance Inst32 => inst32;
-        public HkxInstance Inst64 => inst64;
-
         Hkx.hknpStaticCompoundShape RootShape => (inst64.Objects[0] as Hkx.HavokPhysicsContainer).Objects[0] as Hkx.hknpStaticCompoundShape;
 
         private int partCount;
@@ -1341,8 +769,6 @@ namespace LevelEditorPlugin.Resources
 
         private byte[] resData;
         private ResAssetEntry resEntry;
-
-        public Hkx.PolytopeShape Collision { get; set; }
 
         public override void Read(NativeReader reader, AssetManager am, ResAssetEntry entry, ModifiedResource inModifiedData)
         {
@@ -1492,25 +918,12 @@ namespace LevelEditorPlugin.Resources
             modifiedTransforms[index] = transform;
         }
 
-        public Hkx.PolytopeShape GetOriginalCollison()
-        {
-            var first = inst64.Objects.OfType<Hkx.hknpConvexPolytopeShape>().FirstOrDefault();
-            return first?.GetPolytopeShape();
-        }
-
         public override byte[] SaveBytes()
         {
-            inst64.Header.ModifiedArrays.Clear();
-
-            var shapes = inst64.Objects.OfType<hknpConvexPolytopeShape>().ToList();
-            bool collisionFits = true;
-
             MemoryStream ms = new MemoryStream();
             using (NativeWriter writer = new NativeWriter(ms))
             {
                 writer.Write(resData);
-
-                inst64.WriteObjects(writer);
 
                 // write 32bit
                 //{
@@ -1627,7 +1040,7 @@ namespace LevelEditorPlugin.Resources
                             if (GetTransform(index, out transform))
                             {
                                 hknpShape shape = instance.shape as Hkx.hknpShape;
-                                if (shape != null && (shape.Flags & 4096) != 0)
+                                if (shape != null && (shape.unknown & 0x10) != 0)
                                 {
                                     transform = Matrix.Scaling(-1, 1, 1) * transform;
                                 }
@@ -1670,226 +1083,10 @@ namespace LevelEditorPlugin.Resources
                         }
                     }
                 }
-
-                if (Collision != null && shapes.Count != 0)
-                {
-                    if (!shapes[0].IsShapeValid(Collision))
-                    {
-                        App.Logger.LogError("New collision is invalid");
-                    }
-                    else if (!shapes[0].ShapeFits(Collision))
-                    {
-                        collisionFits = false;
-                    }
-                    else
-                    {
-                        shapes[0].Write(writer, Collision);
-                        for (int i = 1; i < shapes.Count; i++)
-                        {
-                            shapes[i].Write(writer, new PolytopeShape());
-                        }
-                    }
-                }
             }
 
             byte[] outBuffer = ms.ToArray();
             ms.Dispose();
-
-            if (inst64.Header.ModifiedArrays.Count > 0)
-            {
-                int oldSize = inst64.AbsoluteDataStart + inst64.endOffset;
-
-                byte[] newBytes = null;
-
-                long dataStart = inst64.Header.StartOffset + inst64.AbsoluteDataStart;
-                long insertAt = dataStart + inst64.VirtualFixupsOffset;
-
-                var fixups = new Dictionary<long, long>(inst64.Header.ArrayOffsets);
-
-                int delta;
-                int tableDelta;
-
-                using (var writer = new NativeWriter(new MemoryStream()))
-                {
-                    writer.Write(outBuffer, 0, (int)insertAt);
-
-                    for (int i = 0; i < inst64.Header.ModifiedArrays.Count; i++)
-                    {
-                        var array = inst64.Header.ModifiedArrays[i];
-                        long end = writer.Position;
-
-                        if (inst64.Header.ArrayOffsets.TryGetValue(array.Offset, out long oldDataOffset) &&
-                            array.Count <= BitConverter.ToInt32(resData, (int)array.Offset + 8))
-                        {
-                            writer.Position = oldDataOffset;
-                            array.Write(writer);
-                            writer.Position = end;
-                            continue;
-                        }
-
-                        writer.WritePadding(16);
-                        fixups[array.Offset] = writer.Position;
-                        array.Write(writer);
-                    }
-                    writer.WritePadding(16);
-
-                    delta = (int)(writer.Position - insertAt);
-
-                    writer.Write(outBuffer, (int)insertAt, (int)(fixupTable64Pos - insertAt));
-
-                    long tableStart = writer.Position;
-                    foreach (var fixup in fixups.OrderBy(f => f.Key))
-                    {
-                        writer.Write((int)(fixup.Key - dataStart));
-                        writer.Write((int)(fixup.Value - dataStart));
-                    }
-                    while ((writer.Position - tableStart) % 16 != 0)
-                    {
-                        writer.Write(-1);
-                        writer.Write(-1);
-                    }
-                    tableDelta = (int)(writer.Position - tableStart) - inst64.GlobalFixupSize;
-
-                    int restStart = (int)fixupTable64Pos + inst64.GlobalFixupSize;
-                    writer.Write(outBuffer, restStart, outBuffer.Length - restStart);
-
-                    writer.Position = inst64.SectionIntsPos + 4;
-                    writer.Write(inst64.LocalFixupSize + tableDelta);
-                    writer.Write(inst64.GlobalFixupSize + tableDelta);
-                    writer.Write(inst64.VirtualFixupsOffset + delta);
-                    writer.Write(inst64.exportsOffset + delta);
-                    writer.Write(inst64.importsOffset + delta);
-                    writer.Write(inst64.endOffset + delta);
-
-                    writer.Position = fixupSizesPos + 4 + delta;
-                    writer.Write(originalFixupSize64 + tableDelta);
-
-                    newBytes = writer.ToByteArray();
-                }
-
-                outBuffer = newBytes;
-
-                var stream = new MemoryStream();
-                using (var writer = new NativeWriter(stream))
-                {
-                    writer.Write(resMeta);
-
-                    writer.Position = 8;
-                    writer.Write(oldSize + delta);
-                    writer.Write((uint)(fixupTablesSize + tableDelta));
-                }
-
-                resMeta = stream.ToArray();
-            }
-
-            if (!collisionFits)
-            {
-                int oldSize = inst64.AbsoluteDataStart + inst64.endOffset;
-
-                byte[] newBytes = null;
-
-                long dataStart = inst64.Header.StartOffset + inst64.AbsoluteDataStart;
-                long insertAt = dataStart + inst64.VirtualFixupsOffset;
-
-                long[] headerOffsets =
-                {
-                    shapes[0].VerticesHeaderOffset,
-                    shapes[0].PlanesHeaderOffset,
-                    shapes[0].FacesHeaderOffset,
-                    shapes[0].IndicesHeaderOffset
-                };
-                int[] counts =
-                {
-                    Collision.Vertices.Count,
-                    Collision.Planes.Count,
-                    Collision.Faces.Count,
-                    Collision.Indices.Count
-                };
-                long[] dataOffsets = new long[4];
-
-                using (var writer = new NativeWriter(new MemoryStream()))
-                {
-                    writer.Write(outBuffer, 0, (int)insertAt);
-
-                    writer.WritePadding(16);
-                    dataOffsets[0] = writer.Position;
-                    foreach (var vert in Collision.Vertices)
-                    {
-                        writer.Write(vert.X);
-                        writer.Write(vert.Y);
-                        writer.Write(vert.Z);
-                        writer.Write(vert.W);
-                    }
-                    writer.WritePadding(16);
-
-                    dataOffsets[1] = writer.Position;
-                    foreach (var plane in Collision.Planes)
-                    {
-                        writer.Write(plane.X);
-                        writer.Write(plane.Y);
-                        writer.Write(plane.Z);
-                        writer.Write(plane.W);
-                    }
-                    writer.WritePadding(16);
-
-                    dataOffsets[2] = writer.Position;
-                    foreach (var face in Collision.Faces)
-                    {
-                        writer.Write(face.MinHalfAngle);
-                        writer.Write(face.NumIndices);
-                        writer.Write(face.FirstIndex);
-                    }
-                    writer.WritePadding(16);
-
-                    dataOffsets[3] = writer.Position;
-                    foreach (byte i in Collision.Indices)
-                    {
-                        writer.Write(i);
-                    }
-                    writer.WritePadding(16);
-
-                    int delta = (int)(writer.Position - insertAt);
-
-                    ushort[] offsets = new ushort[4];
-                    for (int i = 0; i < 4; i++)
-                    {
-                        offsets[i] = (ushort)(dataOffsets[i] - headerOffsets[i]);
-                    }
-
-                    writer.Write(outBuffer, (int)insertAt, outBuffer.Length - (int)insertAt);
-
-                    writer.Position = inst64.SectionIntsPos + 12;
-                    writer.Write(inst64.VirtualFixupsOffset + delta);
-                    writer.Write(inst64.exportsOffset + delta);
-                    writer.Write(inst64.importsOffset + delta);
-                    writer.Write(inst64.endOffset + delta);
-
-                    for (int i = 0; i < 4; i++)
-                    {
-                        writer.Position = headerOffsets[i];
-                        writer.Write((ushort)counts[i]);
-                        writer.Write(offsets[i]);
-                    }
-
-                    newBytes = writer.ToByteArray();
-                }
-
-                if (newBytes != null)
-                {
-                    outBuffer = newBytes;
-
-                    var stream = new MemoryStream();
-                    using (var writer = new NativeWriter(stream))
-                    {
-                        writer.Write(resMeta);
-
-                        writer.Position = 8;
-                        writer.Write(oldSize + (outBuffer.Length - resData.Length));
-                    }
-
-                    resMeta = stream.ToArray();
-                }
-            }
 
             resEntry.ResMeta = resMeta;
 
@@ -1935,7 +1132,7 @@ namespace LevelEditorPlugin.Resources
                 hknpStaticCompoundShape.hknpInstance instance = RootShape.Instances[(int)index];
                 hknpShape shape = instance.shape as Hkx.hknpShape;
 
-                if (shape != null && (shape.Flags & 4096) != 0)
+                if (shape != null && (shape.unknown & 0x10) != 0)
                 {
                     preScale = Matrix.Scaling(-1, 1, 1);
                 }

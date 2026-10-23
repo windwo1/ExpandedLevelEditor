@@ -9,9 +9,7 @@ using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
 using FrostySdk.IO;
 using FrostySdk.Managers;
-using LevelEditorPlugin.Assets;
 using LevelEditorPlugin.Editors.Exporters;
-using LevelEditorPlugin.Editors.Importers;
 using LevelEditorPlugin.Entities;
 using LevelEditorPlugin.Layers;
 using LevelEditorPlugin.Managers;
@@ -19,20 +17,14 @@ using LevelEditorPlugin.Screens;
 using LevelEditorPlugin.Windows;
 using Microsoft.CSharp.RuntimeBinder;
 using SharpDX;
-using SharpDX.Direct2D1;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Xml.Linq;
 using Matrix = SharpDX.Matrix;
 
 namespace LevelEditorPlugin.Editors
@@ -128,54 +120,6 @@ namespace LevelEditorPlugin.Editors
             forward.Normalize();
 
             return (eye + forward * distance) + offset;
-        }
-
-        public static Vector3 ToVector3(this Vector4 vec)
-        {
-            return new Vector3(vec.X, vec.Y, vec.Z);
-        }
-
-        public static Vector4 ToVector4(this Vector3 vec, float w)
-        {
-            return new Vector4(vec.X, vec.Y, vec.Z, w);
-        }
-
-        public static Vector3 ReadVector3(this NativeReader reader)
-        {
-            Vector3 vec = new Vector3();
-            vec.X = reader.ReadFloat();
-            vec.Y = reader.ReadFloat();
-            vec.Z = reader.ReadFloat();
-            reader.Position += 4;
-
-            return vec;
-        }
-
-        public static Vector4 ReadVector4(this NativeReader reader)
-        {
-            Vector4 vec = new Vector4();
-            vec.X = reader.ReadFloat();
-            vec.Y = reader.ReadFloat();
-            vec.Z = reader.ReadFloat();
-            vec.W = reader.ReadFloat();
-
-            return vec;
-        }
-
-        public static void Write(this NativeWriter writer, Vector3 vec)
-        {
-            writer.Write(vec.X);
-            writer.Write(vec.Y);
-            writer.Write(vec.Z);
-            writer.Write(0.0f);
-        }
-
-        public static void Write(this NativeWriter writer, Vector4 vec)
-        {
-            writer.Write(vec.X);
-            writer.Write(vec.Y);
-            writer.Write(vec.Z);
-            writer.Write(vec.W);
         }
     }
 
@@ -307,9 +251,6 @@ namespace LevelEditorPlugin.Editors
                 new FloatingOnlyDockingToolbarItem("", "Show/Hide schematics editor", "Images/Schematics.png", new RelayCommand((o) => DockManager.AddItem(((DockingToolbarItem)o).Location, new SchematicsViewModel(this, rootLayer))), DockManager, "UID_LevelEditor_Schematics"),
                 new DividerToolbarItem(),
                 new RegularToolbarItem("", "Export all visible instances to XML", "LevelEditorPlugin/Images/XMLFile.png", new RelayCommand((o) => new LevelExporter(RootLayer) )),
-#if GW2
-                new RegularToolbarItem("", "Import a level from exported XML", "LevelEditorPlugin/Images/Import.png", new RelayCommand((o) => new LevelImporter(ref rootLayer, this, editingWorld, world) )),
-#endif
                 new DividerToolbarItem(),
                 new RegularToolbarItem("Add Object", "Add a new object to this level", "LevelEditorPlugin/Images/Add.png", new RelayCommand((o) => AddEntityFromButton() )),
                 new RegularToolbarItem("", "Duplicate the selected object", "LevelEditorPlugin/Images/Copy.png", new RelayCommand((o) => DuplicateEntity() )),

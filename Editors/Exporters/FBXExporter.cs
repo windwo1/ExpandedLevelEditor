@@ -4,15 +4,12 @@ using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
 using FrostySdk;
 using FrostySdk.IO;
-using LevelEditorPlugin.Editors.Importers;
 using LevelEditorPlugin.Resources;
-using MeshSetPlugin.Fbx;
 using SharpDX;
 using SharpDX.Direct3D11;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using Buffer = SharpDX.Direct3D11.Buffer;
 
