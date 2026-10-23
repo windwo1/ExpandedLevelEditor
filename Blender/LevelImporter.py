@@ -112,80 +112,81 @@ class ImportFolderOperator(Operator):
         textures_folder = os.path.join(os.path.dirname(self.directory), "Textures")
 
         # Terrain Chunk importing
-        terrain_collection = bpy.data.collections.new(name="Terrain")
-        bpy.context.scene.collection.children.link(terrain_collection)
-        
-        if not terrain_folder:
-            self.report({'ERROR'}, "No folder selected")
-            return {'CANCELLED'}
+        if len(os.listdir(terrain_folder)) > 0:
+            terrain_collection = bpy.data.collections.new(name="Terrain")
+            bpy.context.scene.collection.children.link(terrain_collection)
+            
+            if not terrain_folder:
+                self.report({'ERROR'}, "No folder selected")
+                return {'CANCELLED'}
 
-        imported_objects = []
+            imported_objects = []
 
-        terrain_decimation = 0.05
+            terrain_decimation = 0.05
 
-        root = ET.parse(os.path.join(meshes_folder, f"{Path(self.directory).name}.xml")).getroot()
-        for element in root.iter():
-            settings = element.find('Settings')
+            root = ET.parse(os.path.join(meshes_folder, f"{Path(self.directory).name}.xml")).getroot()
+            for element in root.iter():
+                settings = element.find('Settings')
 
-            if settings is not None:
-                terrain_decimation = parse_float(settings.findtext('TerrainDecimation'))
-                break
+                if settings is not None:
+                    terrain_decimation = parse_float(settings.findtext('TerrainDecimation'))
+                    break
 
-        for filename in os.listdir(terrain_folder):
-            if filename.lower().endswith(".obj"):
-                filepath = os.path.join(terrain_folder, filename)
-                
-                with open(filepath, "r") as file:
-                    content = file.read()
-                
-                fixed_content = content.replace(",", ".")
-                
-                with open(filepath, "w") as file:
-                    file.write(fixed_content)
-                
-                bpy.ops.wm.obj_import(filepath=filepath)
-                
-                for obj in bpy.context.selected_objects:
-                    for col in obj.users_collection:
-                        col.objects.unlink(obj)
-                    terrain_collection.objects.link(obj)
-                
-                bpy.context.view_layer.objects.active = obj
-                obj.select_set(True)
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.customdata_custom_splitnormals_clear()
-                bpy.ops.object.mode_set(mode='OBJECT')
-                obj.select_set(False)
+            for filename in os.listdir(terrain_folder):
+                if filename.lower().endswith(".obj"):
+                    filepath = os.path.join(terrain_folder, filename)
                     
-                imported_objects.extend(context.selected_objects)
-                self.report({'INFO'}, f"Imported: {filename}")
+                    with open(filepath, "r") as file:
+                        content = file.read()
+                    
+                    fixed_content = content.replace(",", ".")
+                    
+                    with open(filepath, "w") as file:
+                        file.write(fixed_content)
+                    
+                    bpy.ops.wm.obj_import(filepath=filepath)
+                    
+                    for obj in bpy.context.selected_objects:
+                        for col in obj.users_collection:
+                            col.objects.unlink(obj)
+                        terrain_collection.objects.link(obj)
+                    
+                    bpy.context.view_layer.objects.active = obj
+                    obj.select_set(True)
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bpy.ops.mesh.customdata_custom_splitnormals_clear()
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                    obj.select_set(False)
+                        
+                    imported_objects.extend(context.selected_objects)
+                    self.report({'INFO'}, f"Imported: {filename}")
 
-        if terrain_decimation < 1 and terrain_decimation > 0 and len(terrain_collection.objects) > 0:
-            bpy.ops.object.select_all(action="DESELECT")
-            objs = list(terrain_collection.objects)
+            if terrain_decimation < 1 and terrain_decimation > 0 and len(terrain_collection.objects) > 0:
+                bpy.ops.object.select_all(action="DESELECT")
+                objs = list(terrain_collection.objects)
 
-            for obj in objs:
-                obj.select_set(True)
+                for obj in objs:
+                    obj.select_set(True)
 
-            bpy.context.view_layer.objects.active = objs[0]
-            bpy.ops.object.join()
-            terrain = bpy.context.view_layer.objects.active
+                bpy.context.view_layer.objects.active = objs[0]
+                bpy.ops.object.join()
+                terrain = bpy.context.view_layer.objects.active
 
-            print("Merging terrain by distance")
-            bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.remove_doubles(threshold=0.001)
-            bpy.ops.object.mode_set(mode="OBJECT")
+                print("Merging terrain by distance")
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.remove_doubles(threshold=0.001)
+                bpy.ops.object.mode_set(mode="OBJECT")
 
-            print(f"Decimating terrain (ratio: {terrain_decimation})")
-            decimate = terrain.modifiers.new(name="Decimate", type="DECIMATE")
-            decimate.ratio = terrain_decimation
-            bpy.ops.object.modifier_apply(modifier=decimate.name)
+                print(f"Decimating terrain (ratio: {terrain_decimation})")
+                decimate = terrain.modifiers.new(name="Decimate", type="DECIMATE")
+                decimate.ratio = terrain_decimation
+                bpy.ops.object.modifier_apply(modifier=decimate.name)
 
-        bpy.data.orphans_purge(do_recursive=True)
-        gc.collect()
-        
-        self.report({'INFO'}, f"Finished importing terrain from {terrain_folder}")
+            bpy.data.orphans_purge(do_recursive=True)
+            gc.collect()
+            
+            self.report({'INFO'}, f"Finished importing terrain from {terrain_folder}")
         
         # Light importing
         for filename in os.listdir(lights_folder):

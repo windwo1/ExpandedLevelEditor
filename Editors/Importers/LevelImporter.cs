@@ -23,6 +23,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Xml;
+using System.Xml.Linq;
 using TexturePlugin;
 using AxisAlignedBox = LevelEditorPlugin.Resources.AxisAlignedBox;
 using BundleType = FrostySdk.Managers.BundleType;
@@ -109,7 +110,8 @@ namespace LevelEditorPlugin.Editors.Importers
 
         private EbxAssetEntry levelEntry;
         private EbxAsset levelAsset;
-        private ReferenceObject world;
+        private ReferenceObject editingWorld;
+        private EntityWorld world;
 
         private List<Entities.Entity> meshEntities = new List<Entities.Entity>();
         private List<Entities.Entity> lightEntities = new List<Entities.Entity>();
@@ -125,26 +127,26 @@ namespace LevelEditorPlugin.Editors.Importers
 
         private readonly string[] colorNames =
         {
-            "_albedo",
-            "_basecolor",
-            "_basecolour",
-            "_color",
-            "_colour",
-            "_diffuse",
-            "_d",
-            "_main",
-            "_texture"
+            "albedo",
+            "basecolor",
+            "basecolour",
+            "color",
+            "colour",
+            "diffuse",
+            "d",
+            "main",
+            "texture"
         };
 
         private readonly string[] normalNames =
         {
-            "_normal",
-            "_normalmap",
-            "_norm",
-            "_n"
+            "normal",
+            "normalmap",
+            "norm",
+            "n"
         };
 
-        public LevelImporter(ref SceneLayer rootLayer, LevelEditor editor, ReferenceObject editingWorld)
+        public LevelImporter(ref SceneLayer rootLayer, SpatialEditor editor, ReferenceObject editingWorld, EntityWorld world)
         {
             importSettings = new LevelImportSettings
             {
@@ -167,7 +169,8 @@ namespace LevelEditorPlugin.Editors.Importers
 
                     levelEntry = editor.AssetEntry as EbxAssetEntry;
                     levelAsset = editor.Asset;
-                    world = editingWorld;
+                    this.editingWorld = editingWorld;
+                    this.world = world;
 
                     SceneLayer layer = rootLayer;
                     FrostyTaskWindow.Show("Importing Level", "", (task) =>
@@ -197,7 +200,7 @@ namespace LevelEditorPlugin.Editors.Importers
             }
         }
 
-        private SceneLayer ImportLevel(FrostyTaskWindow task, string levelPath, SceneLayer rootLayer, LevelEditor editor)
+        private SceneLayer ImportLevel(FrostyTaskWindow task, string levelPath, SceneLayer rootLayer, SpatialEditor editor)
         {
             task.Update("Getting asset samples");
 
@@ -207,13 +210,20 @@ namespace LevelEditorPlugin.Editors.Importers
             Matrix offset = Matrix.Translation(SharpDXUtils.FromVec3(importSettings.ObjectOffset));
 
             SceneLayer root = null;
+            EbxAssetEntry layer = levelEntry;
+            SceneLayer sceneLayer = rootLayer;
 
-            string layerName = "layer0_leveleditor";
-            CreateLayer(layerName, out var part, out var partEntity);
+            if (editor is LevelEditor)
+            {
+                string layerName = "layer0_leveleditor";
+                CreateLayer(layerName, out var part, out var partEntity);
 
-            var layer = part;
-            var sceneLayer = new SceneLayer(partEntity, layerName);
-            rootLayer.AddLayer(sceneLayer);
+                layer = part;
+                sceneLayer = new SceneLayer(partEntity, layerName);
+                rootLayer.AddLayer(sceneLayer);
+            }
+
+            EbxAsset layerAsset = App.AssetManager.GetEbx(layer);
 
             if (importSettings.OverwriteLevel)
             {
@@ -475,6 +485,7 @@ namespace LevelEditorPlugin.Editors.Importers
 
                             if (obj.Material != null)
                             {
+                                List<int> skipped = new List<int>();
                                 foreach (var texture in obj.Material.Textures)
                                 {
                                     string texPath = texture.Path;
@@ -492,7 +503,12 @@ namespace LevelEditorPlugin.Editors.Importers
                                         // @todo: support for other game textures
                                         foreach (string name in colorNames)
                                         {
-                                            if (texNameLower.EndsWith(name))
+                                            if (texNameLower.EndsWith("_" + name))
+                                            {
+                                                paramName = "Color";
+                                                break;
+                                            }
+                                            else if (texNameLower.StartsWith(name + "_"))
                                             {
                                                 paramName = "Color";
                                                 break;
@@ -500,7 +516,12 @@ namespace LevelEditorPlugin.Editors.Importers
                                         }
                                         foreach (string name in normalNames)
                                         {
-                                            if (texNameLower.EndsWith(name))
+                                            if (texNameLower.EndsWith("_" + name))
+                                            {
+                                                paramName = "Normal";
+                                                break;
+                                            }
+                                            else if (texNameLower.StartsWith(name + "_"))
                                             {
                                                 paramName = "Normal";
                                                 break;
@@ -514,19 +535,34 @@ namespace LevelEditorPlugin.Editors.Importers
                                             paramName = "Color";
 
                                         if (string.IsNullOrEmpty(paramName))
+                                        {
+                                            skipped.Add(obj.Material.Textures.IndexOf(texture));
                                             continue;
+                                        }
                                     }
 
                                     EbxAssetEntry texEntry = CreateTexture($"_leveleditor/{importSettings.LevelName}/Textures/{texName}", textureSample, texPath);
                                     if (texEntry == null)
-                                    {
-                                        App.Logger.LogError($"Failed to import {Path.GetFileName(texPath)}, this is most likely because of the texture format not being supported.");
                                         continue;
-                                    }
 
                                     AddTexParam(paramName, texEntry);
-
                                     addedParams.Add(paramName);
+                                }
+
+                                // same thing as setting it as color when there is only one texture, but when there is only
+                                // one skipped (if for example there is both a valid normal texture, and an invalid color texture)
+                                if (skipped.Count == 1 && obj.Material.Textures.Count == 2)
+                                {
+                                    var texture = obj.Material.Textures[skipped[0]];
+                                    string texPath = texture.Path;
+                                    string texName = Path.GetFileNameWithoutExtension(texPath);
+                                    EbxAssetEntry texEntry = CreateTexture($"_leveleditor/{importSettings.LevelName}/Textures/{texName}", textureSample, texPath);
+
+                                    if (texEntry != null)
+                                    {
+                                        AddTexParam("Color", texEntry);
+                                        addedParams.Add("Color");
+                                    }
                                 }
                             }
 
@@ -559,9 +595,39 @@ namespace LevelEditorPlugin.Editors.Importers
 
                     var transform = obj.Transform * offset;
 
-                    entities.AddRange(editor.AddEntities(blueprint, 1, transform,
-                        addedLayer: sceneLayer, manageBundles: false, showTaskWindow: false, 
-                        selectEntity: false, addToScreen: false, name: obj.Name));
+                    var refObj = Utils.CreateEntityData(typeof(ReferenceObjectData), layerAsset) as ReferenceObjectData;
+                    refObj.__Id = obj.Name;
+                    refObj.LightmapResolutionScale = 1;
+                    refObj.CastSunShadowEnable = true;
+                    refObj.CastReflectionEnable = true;
+                    refObj.CastEnvmapEnable = true;
+                    layerAsset.AddObject(refObj);
+
+                    var refEntity = new ReferenceObject(refObj, sceneLayer.Entity, world, CreateRef(blueprint, layerAsset));
+                    if (sceneLayer.Entity is WorldPartReferenceObject || sceneLayer.Entity is SubWorldReferenceObject)
+                    {
+                        (sceneLayer.Entity as ReferenceObject).AddEntity(refEntity);
+                    }
+                    else if (layerAsset.RootObject is SpatialPrefabBlueprint prefab)
+                    {
+                        (sceneLayer.Entity as ReferenceObject).AddEntity(refEntity);
+                        prefab.Objects.Add(new PointerRef(internalRef: refObj));
+                    }
+                    else
+                    {
+                        App.Logger.LogWarning("Failed to add a ReferenceObject to: " + layer.Name);
+                    }
+
+                    var originalOwner = refEntity.Owner;
+                    refEntity.SetDefaultValues();
+                    refEntity.SetTransform(transform, true);
+                    refEntity.SetOwner(originalOwner);
+
+                    sceneLayer.AddEntity(refEntity);
+
+                    App.AssetManager.ModifyEbx(layer.Name, layerAsset);
+
+                    meshEntities.Add(refEntity);
                 }
             }
             finally
@@ -571,14 +637,20 @@ namespace LevelEditorPlugin.Editors.Importers
 
             task.Update("Creating lights");
 
-            string lightsLayerName = "layer1_lights";
-            CreateLayer(lightsLayerName, out var lightsLayer, out var worldPartEntity);
-            var lightsLayerAsset = App.AssetManager.GetEbx(lightsLayer);
+            EbxAssetEntry lightsLayerEntry = layer;
+            EbxAsset lightsLayerAsset = layerAsset;
+            SceneLayer lightsSceneLayer = sceneLayer;
+            if (editor is LevelEditor)
+            {
+                string lightsLayerName = "layer1_lights";
+                CreateLayer(lightsLayerName, out var lightsLayer, out var worldPartEntity);
+                lightsLayerAsset = App.AssetManager.GetEbx(lightsLayer);
 
-            var lightsSceneLayer = new SceneLayer(worldPartEntity, lightsLayerName);
-            rootLayer.AddLayer(lightsSceneLayer);
+                lightsSceneLayer = new SceneLayer(worldPartEntity, lightsLayerName);
+                rootLayer.AddLayer(lightsSceneLayer);
+            }
 
-            var parent = lightsSceneLayer.Entity as WorldPartReferenceObject;
+            var parent = lightsSceneLayer.Entity as ReferenceObject;
 
             count = 0;
             foreach (var light in lights)
@@ -618,6 +690,10 @@ namespace LevelEditorPlugin.Editors.Importers
                 }
 
                 parent.AddEntity(lightEntity);
+                if (lightsLayerAsset.RootObject is SpatialPrefabBlueprint prefab)
+                {
+                    prefab.Objects.Add(new PointerRef(internalRef: lightEntity.GetRawData()));
+                }
                 lightsSceneLayer.AddEntity(lightEntity);
                 lightEntities.Add(lightEntity);
 
@@ -876,8 +952,8 @@ namespace LevelEditorPlugin.Editors.Importers
             App.AssetManager.ModifyEbx(levelEntry.Name, levelAsset);
             App.AssetManager.ModifyEbx(part.Name, partAsset);
 
-            var partEntity = new WorldPartReferenceObject(partRef, world);
-            world.AddEntity(partEntity);
+            var partEntity = new WorldPartReferenceObject(partRef, editingWorld);
+            editingWorld.AddEntity(partEntity);
 
             outPart = part;
             outPartEntity = partEntity;
@@ -1005,6 +1081,7 @@ namespace LevelEditorPlugin.Editors.Importers
                 App.AssetManager.RevertAsset(entry);
                 App.AssetManager.RevertAsset(newResEntry);
                 App.AssetManager.RevertAsset(newChunkEntry);
+                App.Logger.LogError($"Failed to import {Path.GetFileName(texturePath)}, this is most likely because of the texture format not being supported.");
                 return null;
             }
 

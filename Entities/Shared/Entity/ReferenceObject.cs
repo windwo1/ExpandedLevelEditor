@@ -482,12 +482,13 @@ namespace LevelEditorPlugin.Entities
 
         public virtual void AddEntity(Entity inEntity)
         {
-            throw new NotImplementedException();
+            inEntity.SetParent(this);
+            entities.Add(inEntity);
         }
 
         public virtual void RemoveEntity(Entity inEntity)
         {
-            throw new NotImplementedException();
+            entities.Remove(inEntity);
         }
 
         public override void SetDefaultValues()
