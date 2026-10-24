@@ -180,7 +180,7 @@ namespace LevelEditorPlugin.Editors.Exporters
 #if GW1
                     if (entity is Entities.PointLightEntity light)
 #else
-                    if (entity is PbrSphereLightEntity light)
+                    if (entity is Entities.PbrSphereLightEntity light)
 #endif
                     {
                         EbxAssetEntry entry = App.AssetManager.GetEbxEntry(light.Owner.FileGuid);
